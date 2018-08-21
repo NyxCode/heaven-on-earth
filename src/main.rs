@@ -23,6 +23,31 @@ use std::thread::sleep;
 use simplelog::{TermLogger, LevelFilter, Config};
 use std::path::Path;
 
+fn main() {
+    TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
+
+    let yaml = load_yaml!("cli.yml");
+    let matches = App::from_yaml(yaml).get_matches();
+
+    let mode = matches.value_of("mode").unwrap();
+    let span = matches.value_of("span");
+    let mode = reddit::Mode::from_identifier(mode, span).unwrap();
+    let min_ratio = matches.value_of("min-ratio").map(|i| meval::eval_str(i).unwrap()).unwrap();
+    let max_ratio = matches.value_of("max-ratio").map(|i| meval::eval_str(i).unwrap()).unwrap();
+    let query_size = matches.value_of("query-size")
+        .map(|i| meval::eval_str(i).unwrap()).unwrap() as u8;
+    let run_every = matches.value_of("run-every");
+    let output_dir = matches.value_of("output-dir").unwrap();
+
+    info!("mode: {:?} | output-dir: {} | cron-expr: {:?} | ratio: {}-{} | query-size: {}",
+          mode, output_dir, run_every, min_ratio, max_ratio, query_size);
+
+    match run_every {
+        None => run(&mode, output_dir, min_ratio, max_ratio, query_size),
+        Some(expr) => run_repeating(&mode, output_dir, expr, min_ratio, max_ratio, query_size)
+    };
+}
+
 fn find_wallpaper<P: AsRef<Path>>(query_mode: &reddit::Mode,
                                   output_dir: P,
                                   min_ratio: f32,
@@ -51,31 +76,6 @@ fn find_wallpaper<P: AsRef<Path>>(query_mode: &reddit::Mode,
         }
     }
     None
-}
-
-fn main() {
-    TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
-
-    let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
-
-    let mode = matches.value_of("mode").unwrap();
-    let span = matches.value_of("span");
-    let mode = reddit::Mode::from_identifier(mode, span).unwrap();
-    let min_ratio = matches.value_of("min-ratio").map(|i| meval::eval_str(i).unwrap()).unwrap();
-    let max_ratio = matches.value_of("max-ratio").map(|i| meval::eval_str(i).unwrap()).unwrap();
-    let query_size = matches.value_of("query-size")
-        .map(|i| meval::eval_str(i).unwrap()).unwrap() as u8;
-    let run_every = matches.value_of("run-every");
-    let output_dir = matches.value_of("output-dir").unwrap();
-
-    info!("mode: {:?} | output-dir: {} | cron-expr: {:?} | ratio: {}-{} | query-size: {}",
-          mode, output_dir, run_every, min_ratio, max_ratio, query_size);
-
-    match run_every {
-        None => run(&mode, output_dir, min_ratio, max_ratio, query_size),
-        Some(expr) => run_repeating(&mode, output_dir, expr, min_ratio, max_ratio, query_size)
-    };
 }
 
 fn run_repeating<P: AsRef<Path>>(query_mode: &reddit::Mode, output_dir: P, cron_expr: &str,
