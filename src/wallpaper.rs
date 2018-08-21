@@ -4,6 +4,7 @@ use std::fs::{File, create_dir_all, canonicalize};
 use super::reqwest;
 use std::error::Error;
 use std::io::{Read, Write};
+use std::fs::read_dir;
 use super::serde_json;
 use super::immeta::{GenericMetadata::*, load_from_buf};
 use super::set_wallpaper;
@@ -14,34 +15,14 @@ pub struct Wallpaper {
     pub title: String,
     pub url: String,
     pub format: Option<String>,
+    /// the file on which this wallpaper is stored or [None] if it hasn't been saved yet
     pub file: Option<PathBuf>,
+    /// the dimensions (x, y) of this wallpaper or [None] if it hasn't been downloaded yet
     pub dimensions: Option<(u32, u32)>,
 }
 
-fn get_string(obj: &JsonVal, key: &str) -> Option<String> {
-    obj.get(key).and_then(|x| x.as_str()).map(|x| x.to_string())
-}
-
 impl Wallpaper {
-    pub fn from_json(json: &JsonVal) -> Result<Self, &'static str> {
-        let url = match get_string(&json, "url") {
-            Some(t) => t,
-            None => return Err("field 'url' not found")
-        };
-
-        Ok(Wallpaper {
-            title: match get_string(&json, "title") {
-                Some(t) => t,
-                None => return Err("field 'title' not found")
-            },
-            url,
-            format: None,
-            file: None,
-            dimensions: None,
-        })
-    }
-
-    /// Searches for up to [limit] wallpapers on reddit
+    /// Search for up to [limit] wallpapers on reddit
     pub fn search_on_reddit(mode: &reddit::Mode, limit: u8) -> Vec<Self> {
         // assemble url
         let mut url = mode.to_url();
@@ -79,6 +60,28 @@ impl Wallpaper {
             .collect()
     }
 
+    /// Calculates the width/height ratio of this image
+    /// Returns [None] if [width] and/or [height] is [None]
+    pub fn ratio(&self) -> Option<f32> {
+        self.dimensions.map(|(width, height)| width as f32 / height as f32)
+    }
+
+    /// Sets this wallpaper as a background image
+    pub fn set(&self) -> Result<(), String> {
+        match self.file {
+            Some(ref file) => {
+                let canonical = canonicalize(file).unwrap();
+                let path = canonical.to_str().unwrap();
+                match set_wallpaper(path) {
+                    Ok(()) => Ok(()),
+                    Err(e) => Err(["could not set wallpaper: ", e.description()].concat())
+                }
+            }
+            None => Err("wallpaper is not saved yet!".to_owned())
+        }
+    }
+
+    /// Downloads this wallpaper from its [url] and computes/sets its [format] and [dimensions]
     pub fn download(&mut self) -> Result<Vec<u8>, String> {
         let mut bytes = Vec::<u8>::new();
         match reqwest::get(&self.url) {
@@ -103,33 +106,9 @@ impl Wallpaper {
         Ok(bytes)
     }
 
-    pub fn is_saved<P: AsRef<Path>>(&mut self, folder: P) -> bool {
-        let folder: &Path = folder.as_ref();
-        if !folder.is_dir() {
-            return false
-        }
-        for path in super::std::fs::read_dir(folder).unwrap() {
-            let path = path.unwrap().path();
-            if path.is_file() {
-                let expected_name = self.construct_filename();
-                let expected_name: &str = expected_name.as_ref();
-                let name = {
-                    let path = path.clone();
-                    path.file_name().unwrap().to_str().unwrap().to_owned()
-                };
-                if name.starts_with(expected_name) {
-                    let extension = path.extension().unwrap().to_str().unwrap().to_string();
-                    self.file = Some(path);
-                    self.format = Some(extension);
-                    return true
-                }
-            }
-        }
-        false
-    }
-
-    pub fn save<P: AsRef<Path>>(&mut self, folder: P, data: &[u8]) -> Result<(), String> {
-        let folder = folder.as_ref();
+    /// Saves this wallpaper in [directory] and sets [file] to the path of the created file
+    pub fn save<P: AsRef<Path>>(&mut self, directory: P, image_data: &[u8]) -> Result<(), String> {
+        let folder = directory.as_ref();
         let path = self.construct_path(folder).unwrap();
 
         if path.is_file() {
@@ -142,7 +121,7 @@ impl Wallpaper {
         }
 
         match File::create(&path) {
-            Ok(mut file) => match file.write(data) {
+            Ok(mut file) => match file.write(image_data) {
                 Ok(_) => {
                     self.file = Some(path);
                     Ok(())
@@ -152,6 +131,45 @@ impl Wallpaper {
             Err(e) => Err(["could not create file: ", e.description()].concat())
         }
     }
+
+    /// Searches this wallpaper in [image_directory] and, if found, sets [file] and [format]
+    pub fn update_state<P: AsRef<Path>>(&mut self, image_directory: P) {
+        if self.file.is_some() && self.format.is_some() {
+            return;
+        }
+
+        let image_directory: &Path = image_directory.as_ref();
+
+        let directory_content = match read_dir(image_directory) {
+            Ok(content) => content,
+            Err(_) => return
+        };
+
+        let this_filename = self.construct_filename();
+        let this_filename: &str = this_filename.as_ref();
+
+        let already_downloaded_file = directory_content
+            .filter_map(|path| path.ok())
+            .map(|dir_entry| dir_entry.path())
+            .filter(|path| path.is_file())
+            .filter(|file| {
+                let name = {
+                    let path = file.clone();
+                    path.file_name().unwrap().to_str().unwrap().to_owned()
+                };
+                name.starts_with(this_filename)
+            }).last();
+
+        match already_downloaded_file {
+            Some(file) => {
+                let extension = file.extension().unwrap().to_str().unwrap().to_string();
+                self.file = Some(file);
+                self.format = Some(extension);
+            }
+            None => ()
+        };
+    }
+
 
     fn construct_filename(&self) -> String {
         static FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
@@ -180,22 +198,20 @@ impl Wallpaper {
         Some(folder.join(file_name))
     }
 
-    pub fn ratio(&self) -> Option<f32> {
-        self.dimensions.map(|(width, height)| width as f32 / height as f32)
-    }
-
-    pub fn set(&self) -> Result<(), String> {
-        match self.file {
-            Some(ref file) => {
-                let canonical = canonicalize(file).unwrap();
-                let path = canonical.to_str().unwrap();
-                match set_wallpaper(path) {
-                    Ok(()) => Ok(()),
-                    Err(e) => Err(["could not set wallpaper: ", e.description()].concat())
-                }
-            }
-            None => Err("wallpaper is not saved yet!".to_owned())
-        }
+    fn from_json(json: &JsonVal) -> Result<Self, &'static str> {
+        Ok(Wallpaper {
+            title: match json["title"].as_str() {
+                Some(t) => t.to_owned(),
+                None => return Err("field 'title' not found")
+            },
+            url: match json["url"].as_str() {
+                Some(t) => t.to_owned(),
+                None => return Err("field 'url' not found")
+            },
+            format: None,
+            file: None,
+            dimensions: None,
+        })
     }
 }
 

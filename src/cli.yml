@@ -41,3 +41,9 @@ args:
     help: Filter wallpapers with a greater ratio
     default_value: "99"
     required: false
+- query-size:
+    long: query-size
+    value_name: posts
+    help: Amount of posts which will be queried
+    default_value: "20"
+    required: false

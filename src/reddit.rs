@@ -14,6 +14,8 @@ pub enum Span {
 pub enum Mode {
     New,
     Hot,
+    Rising,
+    Controversial(Span),
     Top(Span),
 }
 
@@ -25,12 +27,39 @@ impl Mode {
         match self {
             New => url.push_str("new.json"),
             Hot => url.push_str("hot.json"),
+            Rising => url.push_str("rising.json"),
+            Controversial(span) => {
+                url.push_str("controversial.json?t=");
+                url.push_str(span.identifier());
+            }
             Top(span) => {
                 url.push_str("top.json?t=");
                 url.push_str(span.identifier());
             }
         };
         url
+    }
+
+    pub fn from_identifier(id: &str, span: Option<&str>) -> Option<Mode> {
+        let id = id.to_lowercase();
+        let id = id.as_ref();
+        match id {
+            "new" => Some(Mode::New),
+            "hot" => Some(Mode::Hot),
+            "rising" => Some(Mode::Rising),
+            "controversial" => match span.map(|span| Span::from_identifier(&span)) {
+                Some(Some(span)) => Some(Mode::Controversial(span)),
+                _ => None
+            },
+            "top" => match span.map(Span::from_identifier) {
+                Some(Some(span)) => Some(Mode::Top(span)),
+                _ => None
+            },
+            unsupported => {
+                error!("Unsupported mode '{}'", unsupported);
+                None
+            }
+        }
     }
 }
 

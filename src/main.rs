@@ -21,21 +21,28 @@ use clap::App;
 use std::time::Duration;
 use std::thread::sleep;
 use simplelog::{TermLogger, LevelFilter, Config};
+use std::path::Path;
 
-fn find_wallpaper(mode: &reddit::Mode, output_dir: &str, min_ratio: f32, max_ratio: f32) -> Wallpaper {
-    let mut wallpapers = Wallpaper::search_on_reddit(mode, 30);
+fn find_wallpaper<P: AsRef<Path>>(query_mode: &reddit::Mode,
+                                  output_dir: P,
+                                  min_ratio: f32,
+                                  max_ratio: f32,
+                                  query_size: u8) -> Option<Wallpaper> {
+    let mut wallpapers = Wallpaper::search_on_reddit(query_mode, query_size);
     for wallpaper in wallpapers.iter_mut() {
-        if wallpaper.is_saved(output_dir) {
+        wallpaper.update_state(&output_dir);
+
+        if wallpaper.file.is_some() {
             info!("Wallpaper already downloaded, not downloading again..");
-            return wallpaper.clone();
+            return Some(wallpaper.clone());
         }
+
         match wallpaper.download() {
             Ok(image_data) => {
                 let ratio = wallpaper.ratio().unwrap();
                 if ratio >= min_ratio && ratio <= max_ratio {
-                    let save_res = wallpaper.save(output_dir, &image_data);
-                    match save_res {
-                        Ok(()) => return wallpaper.clone(),
+                    match wallpaper.save(&output_dir, &image_data) {
+                        Ok(()) => return Some(wallpaper.clone()),
                         Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e)
                     }
                 }
@@ -43,7 +50,7 @@ fn find_wallpaper(mode: &reddit::Mode, output_dir: &str, min_ratio: f32, max_rat
             Err(e) => warn!("Wallpaper could not be downloaded: {}", e)
         }
     }
-    panic!("No wallpaper found!")
+    None
 }
 
 fn main() {
@@ -52,43 +59,32 @@ fn main() {
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
 
-    let mode = match &*matches.value_of("mode").unwrap().to_lowercase() {
-        "new" => reddit::Mode::New,
-        "hot" => reddit::Mode::Hot,
-        "top" => {
-            let span_id = matches.value_of("span").unwrap();
-            let span = reddit::Span::from_identifier(span_id).unwrap();
-            reddit::Mode::Top(span)
-        }
-        unsupported => {
-            error!("Unsupported mode '{}'", unsupported);
-            return;
-        }
-    };
-
-    let min_ratio = matches.value_of("min-ratio")
-        .map(|i| meval::eval_str(i).unwrap()).unwrap();
-    let max_ratio = matches.value_of("max-ratio")
-        .map(|i| meval::eval_str(i).unwrap()).unwrap();
+    let mode = matches.value_of("mode").unwrap();
+    let span = matches.value_of("span");
+    let mode = reddit::Mode::from_identifier(mode, span).unwrap();
+    let min_ratio = matches.value_of("min-ratio").map(|i| meval::eval_str(i).unwrap()).unwrap();
+    let max_ratio = matches.value_of("max-ratio").map(|i| meval::eval_str(i).unwrap()).unwrap();
+    let query_size = matches.value_of("query-size")
+        .map(|i| meval::eval_str(i).unwrap()).unwrap() as u8;
     let run_every = matches.value_of("run-every");
-    let out = matches.value_of("output-dir").unwrap();
+    let output_dir = matches.value_of("output-dir").unwrap();
 
-    info!("mode: {:?} | output-dir: {} | cron-expr: {:?} | min-ratio: {} | max-ratio: {}",
-          mode, out, run_every, min_ratio, max_ratio);
-
+    info!("mode: {:?} | output-dir: {} | cron-expr: {:?} | ratio: {}-{} | query-size: {}",
+          mode, output_dir, run_every, min_ratio, max_ratio, query_size);
 
     match run_every {
-        None => run(&mode, out, min_ratio, max_ratio),
-        Some(expr) => run_repeating(&mode, out, expr, min_ratio, max_ratio)
+        None => run(&mode, output_dir, min_ratio, max_ratio, query_size),
+        Some(expr) => run_repeating(&mode, output_dir, expr, min_ratio, max_ratio, query_size)
     };
 }
 
-fn run_repeating(mode: &reddit::Mode, output: &str, expr: &str, min_ratio: f64, max_ratio: f64) {
+fn run_repeating<P: AsRef<Path>>(query_mode: &reddit::Mode, output_dir: P, cron_expr: &str,
+                                 min_ratio: f64, max_ratio: f64, query_size: u8) {
     let mut agenda = Agenda::new();
 
-    agenda.add(Job::new(|| {
-        run(mode, output, min_ratio, max_ratio);
-    }, expr.parse().unwrap()));
+    let job = Job::new(|| run(query_mode, &output_dir, min_ratio, max_ratio, query_size),
+                       cron_expr.parse().unwrap());
+    agenda.add(job);
 
     loop {
         agenda.run_pending();
@@ -96,8 +92,11 @@ fn run_repeating(mode: &reddit::Mode, output: &str, expr: &str, min_ratio: f64, 
     }
 }
 
-fn run(mode: &reddit::Mode, output: &str, min_ratio: f64, max_ratio: f64) {
+fn run<P: AsRef<Path>>(query_mode: &reddit::Mode, output_dir: P,
+                       min_ratio: f64, max_ratio: f64, query_size: u8) {
     info!("Querying a new wallpaper...");
-    let wallpaper = find_wallpaper(mode, output, min_ratio as f32, max_ratio as f32);
-    wallpaper.set().unwrap();
+    match find_wallpaper(query_mode, output_dir, min_ratio as f32, max_ratio as f32, query_size) {
+        Some(wallpaper) => wallpaper.set().unwrap(),
+        None => warn!("No wallpaper found!")
+    }
 }
