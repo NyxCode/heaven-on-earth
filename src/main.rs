@@ -85,7 +85,7 @@ fn main() {
             Err(e) => error!("Uninstallation failed: {}", e)
         }
     } else {
-        app.print_help();
+        app.print_help().unwrap();
     }
 }
 
