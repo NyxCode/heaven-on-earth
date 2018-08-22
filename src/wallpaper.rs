@@ -119,8 +119,7 @@ impl Wallpaper {
         }
 
         if !folder.is_dir() {
-            create_dir_all(folder)
-                .map_err(|e| format!("could not create path: {}", e))?;
+            create_dir_all(folder).map_err(|e| format!("could not create path: {}", e))?;
         }
 
         File::create(&path)
