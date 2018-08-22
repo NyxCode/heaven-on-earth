@@ -1,5 +1,5 @@
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Span {
     Hour,
     Day,
@@ -10,7 +10,7 @@ pub enum Span {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Mode {
     New,
     Hot,
@@ -59,6 +59,17 @@ impl Mode {
                 error!("Unsupported mode '{}'", unsupported);
                 None
             }
+        }
+    }
+
+    pub fn identifier(&self) -> &'static str {
+        use reddit::Mode::*;
+        match self {
+            New => "new",
+            Hot => "hot",
+            Rising => "rising",
+            Controversial(_) => "controversial",
+            Top(_) => "top"
         }
     }
 }

@@ -74,7 +74,7 @@ impl Wallpaper {
                 let path = canonical.to_str().unwrap();
                 match set_wallpaper(path) {
                     Ok(()) => Ok(()),
-                    Err(e) => Err(["could not set wallpaper: ", e.description()].concat())
+                    Err(e) => Err("could not set wallpaper!".to_owned())
                 }
             }
             None => Err("wallpaper is not saved yet!".to_owned())

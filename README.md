@@ -2,8 +2,8 @@
 `heaven-on-earth` is a small command-line utility for querying images from [/r/EarthPorn](https://www.reddit.com/r/EarthPorn/) and setting them as a wallpaper.
 
 ### Example Usage
-`heaven-on-earth --mode=top --span=day --run-every="0 * * * *"`  
-`heaven-on-earth --mode=new --min-ratio="12/9" --max-ratio="20/9"`  
+`heaven-on-earth run --mode=top --span=day --run-every="0 * * * *"`  
+`heaven-on-earth run --mode=new --min-ratio="12/9" --max-ratio="20/9"`   
 *see `heaven-on-earth --help` for a full list of arguments*
 
 ### Additional info
