@@ -1,4 +1,6 @@
 # heaven-on-earth
+[![Build Status](https://travis-ci.org/NyxCode/heaven-on-earth.svg?branch=master)](https://travis-ci.org/NyxCode/heaven-on-earth)  
+
 `heaven-on-earth` is a small command-line utility for querying images from [/r/EarthPorn](https://www.reddit.com/r/EarthPorn/) and setting them as a wallpaper.
 
 ### Example Usage
