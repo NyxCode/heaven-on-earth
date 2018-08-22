@@ -38,7 +38,7 @@ impl Wallpaper {
         match reqwest::get(&url) {
             Ok(r) => r,
             Err(e) => {
-                error!("Could not reach reddit: {}", e.description());
+                error!("Could not reach reddit: {}", e);
                 return Vec::new();
             }
         }.read_to_string(&mut body)
@@ -46,24 +46,17 @@ impl Wallpaper {
 
         let json = serde_json::from_str::<JsonVal>(&body[..]).unwrap();
 
-        let posts = match json.get("data") {
-            None => Vec::new(),
-            Some(data) => match data.get("children") {
-                None => Vec::new(),
-                Some(children) => children
+        json.get("data")
+            .and_then(|data| data.get("children"))
+            .map_or_else(Vec::new, |children| {
+                children
                     .as_array()
                     .unwrap()
                     .iter()
                     .filter_map(|child| child.get("data"))
-                    .collect(),
-            },
-        };
-
-        posts
-            .iter()
-            .map(|post| Wallpaper::from_json(post))
-            .filter_map(|res| res.ok())
-            .collect()
+                    .filter_map(|post| Wallpaper::from_json(post).ok())
+                    .collect()
+            })
     }
 
     /// Calculates the width/height ratio of this image
@@ -90,12 +83,11 @@ impl Wallpaper {
 
     /// Downloads this wallpaper from its [url] and computes/sets its [format] and [dimensions]
     pub fn download(&mut self) -> Result<Vec<u8>, String> {
-        let mut bytes = Vec::<u8>::new();
-        match reqwest::get(&self.url) {
-            Err(e) => return Err(["request failed: ", e.description()].concat()),
-            Ok(r) => r,
-        }.read_to_end(&mut bytes)
-            .expect("could not read image into buffer");
+        let mut bytes = Vec::new();
+        reqwest::get(&self.url)
+            .map_err(|error| format!("request failed: {}", e))?
+            .read_to_end(&mut bytes)
+            .map_err(|error| format!("could not read image into buffer: {}", e))?;
 
         match load_from_buf(&bytes) {
             Ok(img) => {
@@ -110,7 +102,7 @@ impl Wallpaper {
                     }.to_owned(),
                 )
             }
-            Err(e) => return Err(["computing dimensions failed: ", e.description()].concat()),
+            Err(e) => return Err(format!("computing dimensions failed: {}", e)),
         };
 
         Ok(bytes)
@@ -127,19 +119,18 @@ impl Wallpaper {
         }
 
         if !folder.is_dir() {
-            create_dir_all(folder).unwrap()
+            create_dir_all(folder)
+                .map_err(|e| format!("could not create path: {}", e))?;
         }
 
-        match File::create(&path) {
-            Ok(mut file) => match file.write(image_data) {
-                Ok(_) => {
-                    self.file = Some(path);
-                    Ok(())
-                }
-                Err(e) => Err(["could not write to file: ", e.description()].concat()),
-            },
-            Err(e) => Err(["could not create file: ", e.description()].concat()),
-        }
+        File::create(&path)
+            .map_err(|e| format!("could not create file: {}", e))?
+            .write(image_data)
+            .map_err(|e| format!("could not write to file: {}", e))?;
+
+        self.file = Some(path);
+
+        Ok(())
     }
 
     /// Searches this wallpaper in [image_directory] and, if found, sets [file] and [format]
@@ -163,11 +154,11 @@ impl Wallpaper {
             .map(|dir_entry| dir_entry.path())
             .filter(|path| path.is_file())
             .filter(|file| {
-                let name = {
-                    let path = file.clone();
-                    path.file_name().unwrap().to_str().unwrap().to_owned()
-                };
-                name.starts_with(this_filename)
+                file.file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .starts_with(this_filename)
             })
             .last();
 
@@ -184,18 +175,16 @@ impl Wallpaper {
     fn construct_filename(&self) -> String {
         static FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
-        let format = &self.format.clone().unwrap_or("".to_owned());
-        let name = (&self.title).trim().to_lowercase();
-        let mut new_name = String::with_capacity(name.len());
-        for character in name.chars() {
-            if !FORBIDDEN.contains(&character) {
-                if character == ' ' {
-                    new_name.push('_')
-                } else {
-                    new_name.push(character)
-                }
-            }
-        }
+        let format = &self.format.clone().unwrap_or(String::new());
+
+        let mut new_name: String = self
+            .title
+            .trim()
+            .chars()
+            .flat_map(|c| c.to_lowercase())
+            .filter(|c| !FORBIDDEN.contains(c))
+            .map(|c| if c == ' ' { '_' } else { c })
+            .collect();
 
         new_name.push('.');
         new_name.push_str(format);
@@ -210,14 +199,14 @@ impl Wallpaper {
 
     fn from_json(json: &JsonVal) -> Result<Self, &'static str> {
         Ok(Wallpaper {
-            title: match json["title"].as_str() {
-                Some(t) => t.to_owned(),
-                None => return Err("field 'title' not found"),
-            },
-            url: match json["url"].as_str() {
-                Some(t) => t.to_owned(),
-                None => return Err("field 'url' not found"),
-            },
+            title: json["title"]
+                .as_str()
+                .ok_or("field 'title' not found")?
+                .to_owned(),
+            url: json["url"]
+                .as_str()
+                .ok_or("field 'url' not found")?
+                .to_owned(),
             format: None,
             file: None,
             dimensions: None,
