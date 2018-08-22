@@ -47,14 +47,12 @@ impl Mode {
             "new" => Some(Mode::New),
             "hot" => Some(Mode::Hot),
             "rising" => Some(Mode::Rising),
-            "controversial" => match span.map(|span| Span::from_identifier(&span)) {
-                Some(Some(span)) => Some(Mode::Controversial(span)),
-                _ => None
-            },
-            "top" => match span.map(Span::from_identifier) {
-                Some(Some(span)) => Some(Mode::Top(span)),
-                _ => None
-            },
+            "controversial" => span
+                .and_then(Span::from_identifier)
+                .map(Mode::Controversial),
+            "top" => span
+                .and_then(Span::from_identifier)
+                .map(Mode::Top),
             unsupported => {
                 error!("Unsupported mode '{}'", unsupported);
                 None
