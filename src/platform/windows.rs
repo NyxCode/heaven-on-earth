@@ -1,19 +1,20 @@
 extern crate winapi;
 
-use std::ffi::OsStr;
-use std::iter::once;
-use std::os::windows::ffi::OsStrExt;
-use self::winapi::um::winuser::{SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE,
-                                SPI_SETDESKWALLPAPER};
 use self::winapi::shared::minwindef::TRUE;
 use self::winapi::um::winnt::PVOID;
-use Configuration;
-use std::env::{current_exe, home_dir};
-use std::fs::{create_dir_all, copy, write, remove_dir_all, remove_file};
+use self::winapi::um::winuser::{
+    SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
+};
 use reddit::Mode::*;
+use std::env::{current_exe, home_dir};
 use std::error::Error;
+use std::ffi::OsStr;
+use std::fs::{copy, create_dir_all, remove_dir_all, remove_file, write};
 use std::io::Error as IoError;
+use std::iter::once;
+use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
+use Configuration;
 
 pub fn set_wallpaper(path: &str) -> Result<(), ()> {
     let full_path: Vec<u16> = OsStr::new(path).encode_wide().chain(once(0)).collect();
@@ -38,7 +39,7 @@ pub fn install(config: Configuration) -> Result<(), String> {
     info!("Copying executable...");
     let executable = match current_exe() {
         Ok(exec) => exec,
-        Err(e) => return Err(["could not locate executable: ", e.description()].concat())
+        Err(e) => return Err(["could not locate executable: ", e.description()].concat()),
     };
     let home_dir = home_dir().unwrap();
     let app_dir = get_app_dir(&home_dir);
@@ -51,7 +52,6 @@ pub fn install(config: Configuration) -> Result<(), String> {
         return Err("Already installed!".to_owned());
     }
     copy(executable, &new_executable).unwrap();
-
 
     info!("Creating script...");
     let mut script_file = app_dir.clone();
@@ -91,22 +91,28 @@ pub fn uninstall() -> Result<(), String> {
 }
 
 fn create_startup_script(config: &Configuration, executable: &PathBuf) -> String {
-    let mut cmd = format!("{} run -m={} --min-ratio={} --max-ratio={} --query-size={} --output-dir={}",
-                          executable.to_str().unwrap(), config.mode.identifier(),
-                          config.min_ratio, config.max_ratio, config.query_size, config.output_dir);
+    let mut cmd = format!(
+        "{} run -m={} --min-ratio={} --max-ratio={} --query-size={} --output-dir={}",
+        executable.to_str().unwrap(),
+        config.mode.identifier(),
+        config.min_ratio,
+        config.max_ratio,
+        config.query_size,
+        config.output_dir
+    );
     match config.mode {
         Top(span) | Controversial(span) => {
             cmd.push_str(" --span=");
             cmd.push_str(span.identifier());
         }
-        _ => ()
+        _ => (),
     };
     match config.run_every {
         Some(ref expr) => {
             cmd.push_str(" --run-every=");
             cmd.push_str(&expr);
         }
-        _ => ()
+        _ => (),
     };
     cmd
 }

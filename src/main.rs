@@ -1,27 +1,27 @@
-extern crate serde_json;
-extern crate reqwest;
 extern crate byteorder;
 extern crate immeta;
+extern crate reqwest;
 extern crate schedule;
+extern crate serde_json;
 #[macro_use]
 extern crate clap;
 #[macro_use]
 extern crate log;
-extern crate simplelog;
 extern crate meval;
+extern crate simplelog;
 
-mod wallpaper;
-mod reddit;
 mod platform;
+mod reddit;
+mod wallpaper;
 
-use platform::set_wallpaper;
-use wallpaper::Wallpaper;
-use schedule::{Agenda, Job};
 use clap::{App, ArgMatches};
-use std::time::Duration;
-use std::thread::sleep;
-use simplelog::{TermLogger, LevelFilter, Config};
+use platform::set_wallpaper;
+use schedule::{Agenda, Job};
+use simplelog::{Config, LevelFilter, TermLogger};
 use std::path::Path;
+use std::thread::sleep;
+use std::time::Duration;
+use wallpaper::Wallpaper;
 
 #[derive(Debug)]
 pub struct Configuration {
@@ -38,12 +38,18 @@ impl Configuration {
         let mode = matches.value_of("mode").unwrap();
         let span = matches.value_of("span");
         let mode = reddit::Mode::from_identifier(mode, span).unwrap();
-        let min_ratio = matches.value_of("min-ratio")
-            .map(|i| meval::eval_str(i).unwrap()).unwrap() as f32;
-        let max_ratio = matches.value_of("max-ratio")
-            .map(|i| meval::eval_str(i).unwrap()).unwrap() as f32;
-        let query_size = matches.value_of("query-size")
-            .map(|i| meval::eval_str(i).unwrap()).unwrap() as u8;
+        let min_ratio = matches
+            .value_of("min-ratio")
+            .map(|i| meval::eval_str(i).unwrap())
+            .unwrap() as f32;
+        let max_ratio = matches
+            .value_of("max-ratio")
+            .map(|i| meval::eval_str(i).unwrap())
+            .unwrap() as f32;
+        let query_size = matches
+            .value_of("query-size")
+            .map(|i| meval::eval_str(i).unwrap())
+            .unwrap() as u8;
         let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
         let output_dir = matches.value_of("output-dir").unwrap();
 
@@ -70,30 +76,45 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("run") {
         let config = Configuration::from_matches(&matches);
         match config.run_every {
-            None => run(&config.mode, config.output_dir, config.min_ratio, config.max_ratio, config.query_size),
-            Some(expr) => run_repeating(&config.mode, config.output_dir, expr.as_ref(), config.min_ratio, config.max_ratio, config.query_size)
+            None => run(
+                &config.mode,
+                config.output_dir,
+                config.min_ratio,
+                config.max_ratio,
+                config.query_size,
+            ),
+            Some(expr) => run_repeating(
+                &config.mode,
+                config.output_dir,
+                expr.as_ref(),
+                config.min_ratio,
+                config.max_ratio,
+                config.query_size,
+            ),
         };
     } else if let Some(matches) = matches.subcommand_matches("install") {
         let config = Configuration::from_matches(&matches);
         match platform::install(config) {
             Ok(()) => info!("Installation succeeded!"),
-            Err(e) => error!("Installation failed: {}", e)
+            Err(e) => error!("Installation failed: {}", e),
         }
     } else if let Some(_) = matches.subcommand_matches("uninstall") {
         match platform::uninstall() {
             Ok(()) => info!("Uninstallation succeeded!"),
-            Err(e) => error!("Uninstallation failed: {}", e)
+            Err(e) => error!("Uninstallation failed: {}", e),
         }
     } else {
         app.print_help().unwrap();
     }
 }
 
-fn find_wallpaper<P: AsRef<Path>>(query_mode: &reddit::Mode,
-                                  output_dir: P,
-                                  min_ratio: f32,
-                                  max_ratio: f32,
-                                  query_size: u8) -> Option<Wallpaper> {
+fn find_wallpaper<P: AsRef<Path>>(
+    query_mode: &reddit::Mode,
+    output_dir: P,
+    min_ratio: f32,
+    max_ratio: f32,
+    query_size: u8,
+) -> Option<Wallpaper> {
     let mut wallpapers = Wallpaper::search_on_reddit(query_mode, query_size);
     for wallpaper in wallpapers.iter_mut() {
         wallpaper.update_state(&output_dir);
@@ -109,22 +130,30 @@ fn find_wallpaper<P: AsRef<Path>>(query_mode: &reddit::Mode,
                 if ratio >= min_ratio && ratio <= max_ratio {
                     match wallpaper.save(&output_dir, &image_data) {
                         Ok(()) => return Some(wallpaper.clone()),
-                        Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e)
+                        Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
                     }
                 }
             }
-            Err(e) => warn!("Wallpaper could not be downloaded: {}", e)
+            Err(e) => warn!("Wallpaper could not be downloaded: {}", e),
         }
     }
     None
 }
 
-fn run_repeating<P: AsRef<Path>>(query_mode: &reddit::Mode, output_dir: P, cron_expr: &str,
-                                 min_ratio: f32, max_ratio: f32, query_size: u8) {
+fn run_repeating<P: AsRef<Path>>(
+    query_mode: &reddit::Mode,
+    output_dir: P,
+    cron_expr: &str,
+    min_ratio: f32,
+    max_ratio: f32,
+    query_size: u8,
+) {
     let mut agenda = Agenda::new();
 
-    let job = Job::new(|| run(query_mode, &output_dir, min_ratio, max_ratio, query_size),
-                       cron_expr.parse().unwrap());
+    let job = Job::new(
+        || run(query_mode, &output_dir, min_ratio, max_ratio, query_size),
+        cron_expr.parse().unwrap(),
+    );
     agenda.add(job);
 
     loop {
@@ -133,11 +162,16 @@ fn run_repeating<P: AsRef<Path>>(query_mode: &reddit::Mode, output_dir: P, cron_
     }
 }
 
-fn run<P: AsRef<Path>>(query_mode: &reddit::Mode, output_dir: P,
-                       min_ratio: f32, max_ratio: f32, query_size: u8) {
+fn run<P: AsRef<Path>>(
+    query_mode: &reddit::Mode,
+    output_dir: P,
+    min_ratio: f32,
+    max_ratio: f32,
+    query_size: u8,
+) {
     info!("Querying a new wallpaper...");
     match find_wallpaper(query_mode, output_dir, min_ratio, max_ratio, query_size) {
         Some(wallpaper) => wallpaper.set().unwrap(),
-        None => warn!("No wallpaper found!")
+        None => warn!("No wallpaper found!"),
     }
 }

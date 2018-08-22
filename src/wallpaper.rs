@@ -1,14 +1,13 @@
-use super::serde_json::Value as JsonVal;
-use std::path::{Path, PathBuf};
-use std::fs::{File, create_dir_all, canonicalize};
-use super::reqwest;
-use std::error::Error;
-use std::io::{Read, Write};
-use std::fs::read_dir;
-use super::serde_json;
-use super::immeta::{GenericMetadata::*, load_from_buf};
-use super::set_wallpaper;
+use super::immeta::{load_from_buf, GenericMetadata::*};
 use super::reddit;
+use super::reqwest;
+use super::serde_json;
+use super::serde_json::Value as JsonVal;
+use super::set_wallpaper;
+use std::fs::read_dir;
+use std::fs::{canonicalize, create_dir_all, File};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct Wallpaper {
@@ -26,7 +25,11 @@ impl Wallpaper {
     pub fn search_on_reddit(mode: &reddit::Mode, limit: u8) -> Vec<Self> {
         // assemble url
         let mut url = mode.to_url();
-        if url.contains("?") { url.push('&') } else { url.push('?') }
+        if url.contains("?") {
+            url.push('&')
+        } else {
+            url.push('?')
+        }
         url.push_str("limit=");
         url.push_str(&limit.to_string());
 
@@ -34,36 +37,32 @@ impl Wallpaper {
         match reqwest::get(&url) {
             Ok(r) => r,
             Err(e) => {
-                error!("Could not reach reddit: {}", e.description());
+                error!("Could not reach reddit: {}", e);
                 return Vec::new();
             }
-        }.read_to_string(&mut body).unwrap();
+        }.read_to_string(&mut body)
+            .unwrap();
 
         let json = serde_json::from_str::<JsonVal>(&body[..]).unwrap();
 
-        let posts = match json.get("data") {
-            None => Vec::new(),
-            Some(data) => match data.get("children") {
-                None => Vec::new(),
-                Some(children) => children
+        json.get("data")
+            .and_then(|data| data.get("children"))
+            .map_or_else(Vec::new, |children| {
+                children
                     .as_array()
                     .unwrap()
                     .iter()
                     .filter_map(|child| child.get("data"))
+                    .filter_map(|post| Wallpaper::from_json(post).ok())
                     .collect()
-            }
-        };
-
-        posts.iter()
-            .map(|post| Wallpaper::from_json(post))
-            .filter_map(|res| res.ok())
-            .collect()
+            })
     }
 
     /// Calculates the width/height ratio of this image
     /// Returns [None] if [width] and/or [height] is [None]
     pub fn ratio(&self) -> Option<f32> {
-        self.dimensions.map(|(width, height)| width as f32 / height as f32)
+        self.dimensions
+            .map(|(width, height)| width as f32 / height as f32)
     }
 
     /// Sets this wallpaper as a background image
@@ -74,33 +73,35 @@ impl Wallpaper {
                 let path = canonical.to_str().unwrap();
                 match set_wallpaper(path) {
                     Ok(()) => Ok(()),
-                    Err(_) => Err("could not set wallpaper!".to_owned())
+                    Err(_) => Err("could not set wallpaper!".to_owned()),
                 }
             }
-            None => Err("wallpaper is not saved yet!".to_owned())
+            None => Err("wallpaper is not saved yet!".to_owned()),
         }
     }
 
     /// Downloads this wallpaper from its [url] and computes/sets its [format] and [dimensions]
     pub fn download(&mut self) -> Result<Vec<u8>, String> {
-        let mut bytes = Vec::<u8>::new();
-        match reqwest::get(&self.url) {
-            Err(e) => return Err(["request failed: ", e.description()].concat()),
-            Ok(r) => r
-        }.read_to_end(&mut bytes).expect("could not read image into buffer");
+        let mut bytes = Vec::new();
+        reqwest::get(&self.url)
+            .map_err(|error| format!("request failed: {}", error))?
+            .read_to_end(&mut bytes)
+            .map_err(|error| format!("could not read image into buffer: {}", error))?;
 
         match load_from_buf(&bytes) {
             Ok(img) => {
                 let dim = img.dimensions();
                 self.dimensions = Some((dim.width, dim.height));
-                self.format = Some(match img {
-                    Jpeg(_) => "jpeg",
-                    Png(_) => "png",
-                    Gif(_) => "gif",
-                    _ => return Err("image format not supported".to_owned())
-                }.to_owned())
+                self.format = Some(
+                    match img {
+                        Jpeg(_) => "jpeg",
+                        Png(_) => "png",
+                        Gif(_) => "gif",
+                        _ => return Err("image format not supported".to_owned()),
+                    }.to_owned(),
+                )
             }
-            Err(e) => return Err(["computing dimensions failed: ", e.description()].concat())
+            Err(e) => return Err(format!("computing dimensions failed: {}", e)),
         };
 
         Ok(bytes)
@@ -117,19 +118,17 @@ impl Wallpaper {
         }
 
         if !folder.is_dir() {
-            create_dir_all(folder).unwrap()
+            create_dir_all(folder).map_err(|e| format!("could not create path: {}", e))?;
         }
 
-        match File::create(&path) {
-            Ok(mut file) => match file.write(image_data) {
-                Ok(_) => {
-                    self.file = Some(path);
-                    Ok(())
-                }
-                Err(e) => Err(["could not write to file: ", e.description()].concat())
-            },
-            Err(e) => Err(["could not create file: ", e.description()].concat())
-        }
+        File::create(&path)
+            .map_err(|e| format!("could not create file: {}", e))?
+            .write(image_data)
+            .map_err(|e| format!("could not write to file: {}", e))?;
+
+        self.file = Some(path);
+
+        Ok(())
     }
 
     /// Searches this wallpaper in [image_directory] and, if found, sets [file] and [format]
@@ -142,7 +141,7 @@ impl Wallpaper {
 
         let directory_content = match read_dir(image_directory) {
             Ok(content) => content,
-            Err(_) => return
+            Err(_) => return,
         };
 
         let this_filename = self.construct_filename();
@@ -153,12 +152,13 @@ impl Wallpaper {
             .map(|dir_entry| dir_entry.path())
             .filter(|path| path.is_file())
             .filter(|file| {
-                let name = {
-                    let path = file.clone();
-                    path.file_name().unwrap().to_str().unwrap().to_owned()
-                };
-                name.starts_with(this_filename)
-            }).last();
+                file.file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .starts_with(this_filename)
+            })
+            .last();
 
         match already_downloaded_file {
             Some(file) => {
@@ -166,26 +166,23 @@ impl Wallpaper {
                 self.file = Some(file);
                 self.format = Some(extension);
             }
-            None => ()
+            None => (),
         };
     }
-
 
     fn construct_filename(&self) -> String {
         static FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
-        let format = &self.format.clone().unwrap_or("".to_owned());
-        let name = (&self.title).trim().to_lowercase();
-        let mut new_name = String::with_capacity(name.len());
-        for character in name.chars() {
-            if !FORBIDDEN.contains(&character) {
-                if character == ' ' {
-                    new_name.push('_')
-                } else {
-                    new_name.push(character)
-                }
-            }
-        };
+        let format = &self.format.clone().unwrap_or(String::new());
+
+        let mut new_name: String = self
+            .title
+            .trim()
+            .chars()
+            .flat_map(|c| c.to_lowercase())
+            .filter(|c| !FORBIDDEN.contains(c))
+            .map(|c| if c == ' ' { '_' } else { c })
+            .collect();
 
         new_name.push('.');
         new_name.push_str(format);
@@ -200,19 +197,17 @@ impl Wallpaper {
 
     fn from_json(json: &JsonVal) -> Result<Self, &'static str> {
         Ok(Wallpaper {
-            title: match json["title"].as_str() {
-                Some(t) => t.to_owned(),
-                None => return Err("field 'title' not found")
-            },
-            url: match json["url"].as_str() {
-                Some(t) => t.to_owned(),
-                None => return Err("field 'url' not found")
-            },
+            title: json["title"]
+                .as_str()
+                .ok_or("field 'title' not found")?
+                .to_owned(),
+            url: json["url"]
+                .as_str()
+                .ok_or("field 'url' not found")?
+                .to_owned(),
             format: None,
             file: None,
             dimensions: None,
         })
     }
 }
-
-
