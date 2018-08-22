@@ -1,22 +1,27 @@
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 mod windows;
-#[cfg(not(windows))]
-mod unix;
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "macos")]
+mod darwin;
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 pub use self::windows::set_wallpaper;
-#[cfg(not(windows))]
-pub use self::unix::set_wallpaper;
+# [cfg(target_os = "linux")]
+pub use self::linux::set_wallpaper;
+#[cfg(target_os = "macos")]
+pub use self::darwin::set_wallpaper;
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 pub use self::windows::install;
-#[cfg(not(windows))]
-pub use self::unix::install;
+#[cfg(target_os = "linux")]
+pub use self::linux::install;
+#[cfg(target_os = "macos")]
+pub use self::darwin::install;
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 pub use self::windows::uninstall;
-#[cfg(not(windows))]
-pub use self::unix::uninstall;
-
-
-
+#[cfg(target_os = "linux")]
+pub use self::linux::uninstall;
+#[cfg(target_os = "macos")]
+pub use self::darwin::uninstall;
