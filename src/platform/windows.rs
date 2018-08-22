@@ -9,7 +9,7 @@ use self::winapi::shared::minwindef::TRUE;
 use self::winapi::um::winnt::PVOID;
 use Configuration;
 use std::env::{current_exe, home_dir};
-use std::fs::{create_dir_all, copy, write, canonicalize, remove_dir_all, remove_file};
+use std::fs::{create_dir_all, copy, write, remove_dir_all, remove_file};
 use reddit::Mode::*;
 use std::error::Error;
 use std::io::Error as IoError;
@@ -41,7 +41,7 @@ pub fn install(config: Configuration) -> Result<(), String> {
         Err(e) => return Err(["could not locate executable: ", e.description()].concat())
     };
     let home_dir = home_dir().unwrap();
-    let mut app_dir = get_app_dir(&home_dir);
+    let app_dir = get_app_dir(&home_dir);
     if !app_dir.is_dir() {
         create_dir_all(&app_dir).unwrap();
     }
@@ -72,7 +72,7 @@ pub fn install(config: Configuration) -> Result<(), String> {
 
 pub fn uninstall() -> Result<(), String> {
     let home_dir = home_dir().unwrap();
-    let mut app_dir = get_app_dir(&home_dir);
+    let app_dir = get_app_dir(&home_dir);
     if app_dir.is_dir() {
         remove_dir_all(app_dir).unwrap();
     }
@@ -118,7 +118,7 @@ fn get_autostart_dir(home: &PathBuf) -> PathBuf {
 }
 
 fn get_app_dir(home: &PathBuf) -> PathBuf {
-    let mut app_dir = home_dir.clone();
+    let mut app_dir = home.clone();
     app_dir.push(".heaven-on-earth");
-    dir
+    app_dir
 }
