@@ -64,16 +64,17 @@ fn main() {
     TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
 
     let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
+    let mut app = App::from_yaml(yaml);
+    let matches = app.clone().get_matches();
 
     if let Some(matches) = matches.subcommand_matches("run") {
-        let config = Configuration::from_matches(matches);
+        let config = Configuration::from_matches(&matches);
         match config.run_every {
             None => run(&config.mode, config.output_dir, config.min_ratio, config.max_ratio, config.query_size),
             Some(expr) => run_repeating(&config.mode, config.output_dir, expr.as_ref(), config.min_ratio, config.max_ratio, config.query_size)
         };
     } else if let Some(matches) = matches.subcommand_matches("install") {
-        let config = Configuration::from_matches(matches);
+        let config = Configuration::from_matches(&matches);
         match platform::install(config) {
             Ok(()) => info!("Installation succeeded!"),
             Err(e) => error!("Installation failed: {}", e)
@@ -83,6 +84,8 @@ fn main() {
             Ok(()) => info!("Uninstallation succeeded!"),
             Err(e) => error!("Uninstallation failed: {}", e)
         }
+    } else {
+        app.print_help();
     }
 }
 
