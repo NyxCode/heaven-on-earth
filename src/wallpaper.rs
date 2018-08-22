@@ -4,7 +4,6 @@ use super::reqwest;
 use super::serde_json;
 use super::serde_json::Value as JsonVal;
 use super::set_wallpaper;
-use std::error::Error;
 use std::fs::read_dir;
 use std::fs::{canonicalize, create_dir_all, File};
 use std::io::{Read, Write};
@@ -85,9 +84,9 @@ impl Wallpaper {
     pub fn download(&mut self) -> Result<Vec<u8>, String> {
         let mut bytes = Vec::new();
         reqwest::get(&self.url)
-            .map_err(|error| format!("request failed: {}", e))?
+            .map_err(|error| format!("request failed: {}", error))?
             .read_to_end(&mut bytes)
-            .map_err(|error| format!("could not read image into buffer: {}", e))?;
+            .map_err(|error| format!("could not read image into buffer: {}", error))?;
 
         match load_from_buf(&bytes) {
             Ok(img) => {
