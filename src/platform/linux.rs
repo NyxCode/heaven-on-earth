@@ -14,7 +14,7 @@ pub fn set_wallpaper(path: &str) -> Result<(), ()> {
             Err(())
         },
         Err(e) => {
-            error!("Could not obtain exit code: {}", e.description());
+            error!("Could not obtain exit code: {}", e);
             Err(())
         }
     }
