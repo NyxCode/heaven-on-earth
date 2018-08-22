@@ -50,9 +50,7 @@ impl Mode {
             "controversial" => span
                 .and_then(Span::from_identifier)
                 .map(Mode::Controversial),
-            "top" => span
-                .and_then(Span::from_identifier)
-                .map(Mode::Top),
+            "top" => span.and_then(Span::from_identifier).map(Mode::Top),
             unsupported => {
                 error!("Unsupported mode '{}'", unsupported);
                 None
@@ -67,7 +65,7 @@ impl Mode {
             Hot => "hot",
             Rising => "rising",
             Controversial(_) => "controversial",
-            Top(_) => "top"
+            Top(_) => "top",
         }
     }
 }
@@ -82,7 +80,7 @@ impl Span {
             "month" => Some(Month),
             "year" | "356d" => Some(Year),
             "all" | "ever" => Some(All),
-            _ => None
+            _ => None,
         }
     }
 
@@ -94,7 +92,7 @@ impl Span {
             Week => "week",
             Month => "month",
             Year => "year",
-            All => "all"
+            All => "all",
         }
     }
 }
