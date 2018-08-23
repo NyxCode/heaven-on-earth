@@ -8,16 +8,16 @@ extern crate clap;
 #[macro_use]
 extern crate log;
 extern crate meval;
-extern crate simplelog;
 extern crate rand;
+extern crate simplelog;
 
 mod platform;
 mod reddit;
 mod wallpaper;
 
 use clap::{App, ArgMatches};
-use rand::{Rng, thread_rng};
 use platform::set_wallpaper;
+use rand::{thread_rng, Rng};
 use schedule::{Agenda, Job};
 use simplelog::{Config, LevelFilter, TermLogger};
 use std::thread::sleep;
@@ -128,15 +128,14 @@ fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
     None
 }
 
-
 fn run(config: &Configuration) {
     fn run_once(config: &Configuration) {
         info!("Searching for a new wallpaper...");
         match find_wallpaper(config) {
             Some(wallpaper) => match wallpaper.set() {
                 Ok(_) => (),
-                Err(err) => error!("Could not set wallpaper: {}", err)
-            }
+                Err(err) => error!("Could not set wallpaper: {}", err),
+            },
             None => warn!("No wallpaper found!"),
         };
     }
@@ -153,6 +152,6 @@ fn run(config: &Configuration) {
 
     match config.run_every {
         Some(ref cron_expr) => run_repeating(config, cron_expr),
-        None => run_once(config)
+        None => run_once(config),
     }
 }
