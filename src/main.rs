@@ -8,63 +8,23 @@ extern crate clap;
 #[macro_use]
 extern crate log;
 extern crate meval;
+extern crate rand;
 extern crate simplelog;
 
+mod configuration;
 mod platform;
 mod reddit;
 mod wallpaper;
 
-use clap::{App, ArgMatches};
+use clap::App;
+use configuration::Configuration;
 use platform::set_wallpaper;
+use rand::{thread_rng, Rng};
 use schedule::{Agenda, Job};
 use simplelog::{Config, LevelFilter, TermLogger};
-use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 use wallpaper::Wallpaper;
-
-#[derive(Debug)]
-pub struct Configuration {
-    pub mode: reddit::Mode,
-    pub min_ratio: f32,
-    pub max_ratio: f32,
-    pub query_size: u8,
-    pub run_every: Option<String>,
-    pub output_dir: String,
-}
-
-impl Configuration {
-    fn from_matches(matches: &ArgMatches) -> Self {
-        let mode = matches.value_of("mode").unwrap();
-        let span = matches.value_of("span");
-        let mode = reddit::Mode::from_identifier(mode, span).unwrap();
-        let min_ratio = matches
-            .value_of("min-ratio")
-            .map(|i| meval::eval_str(i).unwrap())
-            .unwrap() as f32;
-        let max_ratio = matches
-            .value_of("max-ratio")
-            .map(|i| meval::eval_str(i).unwrap())
-            .unwrap() as f32;
-        let query_size = matches
-            .value_of("query-size")
-            .map(|i| meval::eval_str(i).unwrap())
-            .unwrap() as u8;
-        let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
-        let output_dir = matches.value_of("output-dir").unwrap();
-
-        let config = Configuration {
-            mode,
-            min_ratio,
-            max_ratio,
-            query_size,
-            run_every,
-            output_dir: output_dir.to_owned(),
-        };
-        info!("{:?}", config);
-        config
-    }
-}
 
 fn main() {
     TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
@@ -75,23 +35,7 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("run") {
         let config = Configuration::from_matches(&matches);
-        match config.run_every {
-            None => run(
-                &config.mode,
-                config.output_dir,
-                config.min_ratio,
-                config.max_ratio,
-                config.query_size,
-            ),
-            Some(expr) => run_repeating(
-                &config.mode,
-                config.output_dir,
-                expr.as_ref(),
-                config.min_ratio,
-                config.max_ratio,
-                config.query_size,
-            ),
-        };
+        run(&config)
     } else if let Some(matches) = matches.subcommand_matches("install") {
         let config = Configuration::from_matches(&matches);
         match platform::install(config) {
@@ -108,27 +52,26 @@ fn main() {
     }
 }
 
-fn find_wallpaper<P: AsRef<Path>>(
-    query_mode: &reddit::Mode,
-    output_dir: P,
-    min_ratio: f32,
-    max_ratio: f32,
-    query_size: u8,
-) -> Option<Wallpaper> {
-    let mut wallpapers = Wallpaper::search_on_reddit(query_mode, query_size);
+fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
+    let mut wallpapers = Wallpaper::search_on_reddit(&config.mode, config.query_size);
+
+    if config.random {
+        thread_rng().shuffle(&mut wallpapers);
+    }
+
     for wallpaper in wallpapers.iter_mut() {
-        wallpaper.update_state(&output_dir);
+        wallpaper.update_state(&config.output_dir);
 
         if wallpaper.file.is_some() {
-            info!("Wallpaper already downloaded, not downloading again..");
+            info!("Wallpaper already downloaded, not downloading it again..");
             return Some(wallpaper.clone());
         }
 
         match wallpaper.download() {
             Ok(image_data) => {
                 let ratio = wallpaper.ratio().unwrap();
-                if ratio >= min_ratio && ratio <= max_ratio {
-                    match wallpaper.save(&output_dir, &image_data) {
+                if ratio >= config.min_ratio && ratio <= config.max_ratio {
+                    match wallpaper.save(&config.output_dir, &image_data) {
                         Ok(()) => return Some(wallpaper.clone()),
                         Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
                     }
@@ -140,38 +83,30 @@ fn find_wallpaper<P: AsRef<Path>>(
     None
 }
 
-fn run_repeating<P: AsRef<Path>>(
-    query_mode: &reddit::Mode,
-    output_dir: P,
-    cron_expr: &str,
-    min_ratio: f32,
-    max_ratio: f32,
-    query_size: u8,
-) {
-    let mut agenda = Agenda::new();
-
-    let job = Job::new(
-        || run(query_mode, &output_dir, min_ratio, max_ratio, query_size),
-        cron_expr.parse().unwrap(),
-    );
-    agenda.add(job);
-
-    loop {
-        agenda.run_pending();
-        sleep(Duration::from_secs(1));
+fn run(config: &Configuration) {
+    fn run_once(config: &Configuration) {
+        info!("Searching for a new wallpaper...");
+        match find_wallpaper(config) {
+            Some(wallpaper) => match wallpaper.set() {
+                Ok(_) => (),
+                Err(err) => error!("Could not set wallpaper: {}", err),
+            },
+            None => warn!("No wallpaper found!"),
+        };
     }
-}
 
-fn run<P: AsRef<Path>>(
-    query_mode: &reddit::Mode,
-    output_dir: P,
-    min_ratio: f32,
-    max_ratio: f32,
-    query_size: u8,
-) {
-    info!("Querying a new wallpaper...");
-    match find_wallpaper(query_mode, output_dir, min_ratio, max_ratio, query_size) {
-        Some(wallpaper) => wallpaper.set().unwrap(),
-        None => warn!("No wallpaper found!"),
+    fn run_repeating(config: &Configuration, cron_expr: &String) {
+        let mut agenda = Agenda::new();
+        agenda.add(Job::new(|| run_once(config), cron_expr.parse().unwrap()));
+
+        loop {
+            agenda.run_pending();
+            sleep(Duration::from_secs(1));
+        }
+    }
+
+    match config.run_every {
+        Some(ref cron_expr) => run_repeating(config, cron_expr),
+        None => run_once(config),
     }
 }

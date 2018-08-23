@@ -5,7 +5,7 @@ use self::winapi::um::winnt::PVOID;
 use self::winapi::um::winuser::{
     SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
 };
-use reddit::Mode::*;
+use configuration::Configuration;
 use std::env::{current_exe, home_dir};
 use std::ffi::OsStr;
 use std::fs::{copy, create_dir_all, remove_dir_all, remove_file, write};
@@ -13,7 +13,6 @@ use std::io::Error as IoError;
 use std::iter::once;
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
-use Configuration;
 
 const SCRIPT_NAME: &'static str = "heaven-on-earth.bat";
 
@@ -42,13 +41,13 @@ pub fn install(config: Configuration) -> Result<(), String> {
     let home = home_dir().ok_or_else(|| format!("Could not locate home directory"))?;
     let app = get_app_dir(&home);
     create_dir_all(&app).map_err(|e| format!("Could not create installation directory: {}", e))?;
-    let exe_name = exe.file_name().unwrap();
+    let exe_name = exe.file_name().unwrap().to_str().unwrap();
     let new_exe = app.join(exe_name);
     copy(&exe, &new_exe).map_err(|e| format!("Could not copy executable: {}", e))?;
 
     info!("Creating script...");
     let script = app.join(SCRIPT_NAME);
-    let command = create_startup_script(&config, &new_exe);
+    let command = config.to_command(exe_name);
     write(&script, command).map_err(|e| format!("Could not create startup script: {}", e))?;
 
     info!("Copying script...");
@@ -69,33 +68,6 @@ pub fn uninstall() -> Result<(), String> {
     remove_file(script).map_err(|e| format!("Could not remove startup script: {}", e))?;
 
     Ok(())
-}
-
-fn create_startup_script(config: &Configuration, executable: &PathBuf) -> String {
-    let mut cmd = format!(
-        "{} run -m={} --min-ratio={} --max-ratio={} --query-size={} --output-dir={}",
-        executable.to_str().unwrap(),
-        config.mode.identifier(),
-        config.min_ratio,
-        config.max_ratio,
-        config.query_size,
-        config.output_dir
-    );
-
-    match config.mode {
-        Top(span) | Controversial(span) => {
-            cmd.push_str(" --span=");
-            cmd.push_str(span.identifier());
-        }
-        _ => (),
-    };
-
-    if let Some(ref cron_expr) = config.run_every {
-        cmd.push_str(" --run-every=");
-        cmd.push_str(&cron_expr);
-    }
-
-    cmd
 }
 
 fn get_startup_dir(home: &PathBuf) -> PathBuf {

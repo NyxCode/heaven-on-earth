@@ -1,6 +1,6 @@
+use configuration::Configuration;
 use std::error::Error;
 use std::process::Command;
-use Configuration;
 
 pub fn set_wallpaper(path: &str) -> Result<(), ()> {
     // apple. who thought of this shit? fucking hilarious.
