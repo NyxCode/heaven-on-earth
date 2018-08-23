@@ -63,6 +63,7 @@ subcommands:
 - uninstall:
     about: Uninstalls this executable
 - run:
+    about: Queries /r/EarthPorn for images and sets them as a wallpaper
     args:
     - mode:
         short: m
