@@ -14,8 +14,9 @@ extern crate simplelog;
 mod platform;
 mod reddit;
 mod wallpaper;
+mod configuration;
 
-use clap::{App, ArgMatches};
+use clap::App;
 use platform::set_wallpaper;
 use rand::{thread_rng, Rng};
 use schedule::{Agenda, Job};
@@ -23,53 +24,7 @@ use simplelog::{Config, LevelFilter, TermLogger};
 use std::thread::sleep;
 use std::time::Duration;
 use wallpaper::Wallpaper;
-
-#[derive(Debug)]
-pub struct Configuration {
-    pub mode: reddit::Mode,
-    pub min_ratio: f32,
-    pub max_ratio: f32,
-    pub query_size: u8,
-    pub run_every: Option<String>,
-    pub output_dir: String,
-    pub random: bool,
-}
-
-impl Configuration {
-    fn from_matches(matches: &ArgMatches) -> Self {
-        let mode = matches.value_of("mode").unwrap();
-        let span = matches.value_of("span");
-        let mode = reddit::Mode::from_identifier(mode, span).unwrap();
-        let min_ratio = matches
-            .value_of("min-ratio")
-            .map(|i| meval::eval_str(i).unwrap())
-            .unwrap() as f32;
-        let max_ratio = matches
-            .value_of("max-ratio")
-            .map(|i| meval::eval_str(i).unwrap())
-            .unwrap() as f32;
-        let query_size = matches
-            .value_of("query-size")
-            .map(|i| meval::eval_str(i).unwrap())
-            .unwrap() as u8;
-        let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
-        let output_dir = matches.value_of("output-dir").unwrap();
-        let random = matches.is_present("random");
-
-        let config = Configuration {
-            mode,
-            min_ratio,
-            max_ratio,
-            query_size,
-            run_every,
-            output_dir: output_dir.to_owned(),
-            random,
-        };
-
-        info!("{:?}", config);
-        config
-    }
-}
+use configuration::Configuration;
 
 fn main() {
     TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
