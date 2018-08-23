@@ -31,6 +31,7 @@ pub struct Configuration {
     pub query_size: u8,
     pub run_every: Option<String>,
     pub output_dir: String,
+    pub random: bool
 }
 
 impl Configuration {
@@ -52,6 +53,7 @@ impl Configuration {
             .unwrap() as u8;
         let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
         let output_dir = matches.value_of("output-dir").unwrap();
+        let random = matches.is_present("random");
 
         let config = Configuration {
             mode,
@@ -60,6 +62,7 @@ impl Configuration {
             query_size,
             run_every,
             output_dir: output_dir.to_owned(),
+            random
         };
         info!("{:?}", config);
         config
