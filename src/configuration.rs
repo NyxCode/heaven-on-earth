@@ -1,6 +1,6 @@
-use reddit::Mode;
 use clap::ArgMatches;
 use meval::eval_str as str_to_i64;
+use reddit::Mode;
 
 #[derive(Debug)]
 pub struct Configuration {

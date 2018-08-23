@@ -1,6 +1,6 @@
+use configuration::Configuration;
 use std::error::Error;
 use std::process::Command;
-use configuration::Configuration;
 
 pub fn set_wallpaper(path: &str) -> Result<(), ()> {
     let mut command = Command::new("feh");

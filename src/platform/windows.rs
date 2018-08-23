@@ -5,6 +5,7 @@ use self::winapi::um::winnt::PVOID;
 use self::winapi::um::winuser::{
     SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
 };
+use configuration::Configuration;
 use std::env::{current_exe, home_dir};
 use std::ffi::OsStr;
 use std::fs::{copy, create_dir_all, remove_dir_all, remove_file, write};
@@ -12,7 +13,6 @@ use std::io::Error as IoError;
 use std::iter::once;
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
-use configuration::Configuration;
 
 const SCRIPT_NAME: &'static str = "heaven-on-earth.bat";
 

@@ -11,12 +11,13 @@ extern crate meval;
 extern crate rand;
 extern crate simplelog;
 
+mod configuration;
 mod platform;
 mod reddit;
 mod wallpaper;
-mod configuration;
 
 use clap::App;
+use configuration::Configuration;
 use platform::set_wallpaper;
 use rand::{thread_rng, Rng};
 use schedule::{Agenda, Job};
@@ -24,7 +25,6 @@ use simplelog::{Config, LevelFilter, TermLogger};
 use std::thread::sleep;
 use std::time::Duration;
 use wallpaper::Wallpaper;
-use configuration::Configuration;
 
 fn main() {
     TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
