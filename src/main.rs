@@ -9,12 +9,14 @@ extern crate clap;
 extern crate log;
 extern crate meval;
 extern crate simplelog;
+extern crate rand;
 
 mod platform;
 mod reddit;
 mod wallpaper;
 
 use clap::{App, ArgMatches};
+use rand::{Rng, thread_rng};
 use platform::set_wallpaper;
 use schedule::{Agenda, Job};
 use simplelog::{Config, LevelFilter, TermLogger};
@@ -98,6 +100,10 @@ fn main() {
 fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
     let mut wallpapers = Wallpaper::search_on_reddit(&config.mode, config.query_size);
 
+    if config.random {
+        thread_rng().shuffle(&mut wallpapers);
+    }
+
     for wallpaper in wallpapers.iter_mut() {
         wallpaper.update_state(&config.output_dir);
 
@@ -122,29 +128,29 @@ fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
     None
 }
 
-fn run_repeating(config: &Configuration, cron_expr: &String) {
-    let mut agenda = Agenda::new();
-    let job = Job::new(|| run_once(config), cron_expr.parse().unwrap());
-    agenda.add(job);
-
-    loop {
-        agenda.run_pending();
-        sleep(Duration::from_secs(1));
-    }
-}
-
-fn run_once(config: &Configuration) {
-    info!("Querying a new wallpaper...");
-    match find_wallpaper(config) {
-        Some(wallpaper) => match wallpaper.set() {
-            Err(err) => error!("Could not set wallpaper"),
-            Ok(_) => ()
-        },
-        None => warn!("No wallpaper found!"),
-    };
-}
 
 fn run(config: &Configuration) {
+    fn run_once(config: &Configuration) {
+        info!("Searching for a new wallpaper...");
+        match find_wallpaper(config) {
+            Some(wallpaper) => match wallpaper.set() {
+                Ok(_) => (),
+                Err(err) => error!("Could not set wallpaper: {}", err)
+            }
+            None => warn!("No wallpaper found!"),
+        };
+    }
+
+    fn run_repeating(config: &Configuration, cron_expr: &String) {
+        let mut agenda = Agenda::new();
+        agenda.add(Job::new(|| run_once(config), cron_expr.parse().unwrap()));
+
+        loop {
+            agenda.run_pending();
+            sleep(Duration::from_secs(1));
+        }
+    }
+
     match config.run_every {
         Some(ref cron_expr) => run_repeating(config, cron_expr),
         None => run_once(config)
