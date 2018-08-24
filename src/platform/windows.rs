@@ -45,9 +45,13 @@ pub fn install(config: Configuration) -> Result<(), String> {
     let new_exe = app.join(exe_name);
     copy(&exe, &new_exe).map_err(|e| format!("Could not copy executable: {}", e))?;
 
+    let mut config = config;
+    config.output_dir = app.join("output").to_str().unwrap().to_owned();
+
     info!("Creating script...");
     let script = app.join(SCRIPT_NAME);
-    let command = config.to_command(exe_name);
+    let new_exe_str = new_exe.to_str().unwrap();
+    let command = config.to_command(new_exe_str);
     write(&script, command).map_err(|e| format!("Could not create startup script: {}", e))?;
 
     info!("Copying script...");
