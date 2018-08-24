@@ -1,65 +1,9 @@
-# Based on the "trust" template v0.1.2
-# https://github.com/japaric/trust/tree/v0.1.2
-
-dist: trusty
 language: rust
-services: docker
-sudo: required
-
-env:
-  global:
-    - CRATE_NAME=heaven-on-earth
-
-matrix:
-  include:
-    # Linux
-    - env: TARGET=x86_64-unknown-linux-gnu
-
-    # OSX
-    - env: TARGET=x86_64-apple-darwin
-      os: osx
-
-    # Windows
-    - env: TARGET=x86_64-pc-windows-gnu
-
-before_install:
-  - set -e
-  - rustup self update
-
-install:
-  - sh ci/install.sh
-  - source ~/.cargo/env || true
-
-script:
-  - bash ci/script.sh
-
-after_script: set +e
-
-before_deploy:
-  - sh ci/before_deploy.sh
-
-deploy:
-  api_key:
-    secure: "uIDUsk9RsEh2ifoXGCqSxJ9Yr4+cvfuiirSDrG2/3z4fjgwOusuIvvgbPDTJwtEAQRUxfGZYDm0ziy0vbT2a9ugc3kTF3xz+cWNAuMqD37PbWCIXaUGRdtOBP2+eUJTLF0TxIwhnEKTBo1oVd/cMMEJwwTROh6gYfkvb7VRyinEm4+6T8eHvTQ+woWwBCEMWYueRXGkNQEq5o8lue7dDp/Tm/YIDq504dGAeqewH4I9lYG4TjK38qQb4WM/lxhEPAYMzw0rh4n+ktQv/Q9INtLKRMXlXT5JcOE9+zifHYj0SmsIlabplrTZZDjCDdsSLEuGH5ZjP+J0Pqt8HUe24or0fpq1MuJT7nG1Mn8ys8ZqqHXY89fTIUvY1ulMD+Sgbz/KAmZy6aZ4Wx2IXJnbuRrdyX1jZt9gGlpP3iNklG6x2Kjx7WvehIxhriXvcUp+EFiehcQe1gLxXjh9N+KgjGnoCFOkvYfiSBQR5csG5ryOBqNIJsZdg7dq4FKL8sTpDj3FIwg+FB2pbqpzrWXtl2c+q8KjK/0Lliw9/lDJqI3mRDzJPEkC86tckZ9MmE4d4+ciJKxRmM8J9wBgeZUCBhg8RJtm+WJCK2zn60tI7WUu3gVSbL6qGVBkW2FIUOJ7HDtAkteSeJ5qci/J1mWJqBIyKezEjK3dVAZFhPf7Frk4="
-  file_glob: true
-  file: $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
-  on:
-    condition: $TRAVIS_RUST_VERSION = stable
-    tags: true
-  provider: releases
-  skip_cleanup: true
-
+rust:
+- stable
 cache: cargo
-before_cache:
-  # Travis can't cache files that are not readable by "others"
-  - chmod -R a+r $HOME/.cargo
-
-branches:
-  only:
-    # release tags
-    - /^v\d+\.\d+\.\d+.*$/
-    - master
-
-notifications:
-  email:
-    on_success: never
+script:
+- cargo build --verbose --all
+os:
+- linux
+- osx
