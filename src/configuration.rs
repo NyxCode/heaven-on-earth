@@ -18,7 +18,6 @@ impl Configuration {
     pub fn from_matches(matches: &ArgMatches) -> Self {
         let mode = matches.value_of("mode").unwrap();
         let span = matches.value_of("span");
-        println!("{:?} | {:?}", mode, span);
         let mode = Mode::from_identifier(mode, span).unwrap();
         let min_ratio = matches
             .value_of("min-ratio")
