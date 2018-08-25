@@ -11,12 +11,14 @@ pub struct Configuration {
     pub run_every: Option<String>,
     pub output_dir: String,
     pub random: bool,
+    pub subreddit: String,
 }
 
 impl Configuration {
     pub fn from_matches(matches: &ArgMatches) -> Self {
         let mode = matches.value_of("mode").unwrap();
         let span = matches.value_of("span");
+        println!("{:?} | {:?}", mode, span);
         let mode = Mode::from_identifier(mode, span).unwrap();
         let min_ratio = matches
             .value_of("min-ratio")
@@ -31,7 +33,8 @@ impl Configuration {
             .map(|i| str_to_i64(i).unwrap())
             .unwrap() as u8;
         let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
-        let output_dir = matches.value_of("output-dir").unwrap();
+        let output_dir = matches.value_of("output-dir").unwrap().to_owned();
+        let subreddit = matches.value_of("subreddit").unwrap().to_owned();
         let random = matches.is_present("random");
 
         let config = Configuration {
@@ -40,8 +43,9 @@ impl Configuration {
             max_ratio,
             query_size,
             run_every,
-            output_dir: output_dir.to_owned(),
+            output_dir,
             random,
+            subreddit,
         };
 
         info!("{:?}", config);
@@ -50,20 +54,18 @@ impl Configuration {
 
     pub fn to_command(&self, executable_name: &str) -> String {
         let mut cmd = format!(
-            "{} run -m={} --min-ratio={} --max-ratio={} --query-size={} --output-dir={}",
+            "{} run -m={} --min-ratio={} --max-ratio={} --query-size={} -o={} --subreddit={}",
             executable_name,
             self.mode.identifier(),
             self.min_ratio,
             self.max_ratio,
             self.query_size,
-            self.output_dir
+            self.output_dir,
+            self.subreddit
         );
 
         match self.mode {
-            Mode::Top(span) | Mode::Controversial(span) => {
-                cmd.push_str(" --span=");
-                cmd.push_str(span.identifier());
-            }
+            Mode::Top(span) | Mode::Controversial(span) => cmd += &format!(" --span={}", span),
             _ => (),
         };
 

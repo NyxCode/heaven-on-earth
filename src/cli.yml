@@ -56,10 +56,18 @@ subcommands:
         default_value: "20"
         takes_value: true
         required: false
+    - subreddit:
+        long: subreddit
+        value_name: subreddit
+        help: Sets the subredit from
+        default_value: "EarthPorn"
+        takes_value: true
+        required: false
     - random:
         long: random
         help: Choose a random wallpaper matching the query, not the first one
         required: false
+
 - uninstall:
     about: Uninstalls this executable
 - run:
@@ -113,6 +121,13 @@ subcommands:
         value_name: posts
         help: Amount of posts which will be queried
         default_value: "20"
+        takes_value: true
+        required: false
+    - subreddit:
+        long: subreddit
+        value_name: subreddit
+        help: Sets the subredit from
+        default_value: "EarthPorn"
         takes_value: true
         required: false
     - random:

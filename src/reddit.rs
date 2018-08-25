@@ -1,3 +1,5 @@
+use ::configuration::Configuration;
+
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub enum Span {
@@ -19,42 +21,39 @@ pub enum Mode {
     Top(Span),
 }
 
+pub fn create_url(config: &Configuration) -> String {
+    use reddit::Mode::*;
+
+    let mut url = format!("https://www.reddit.com/r/{}/{}.json?limit={}",
+                          config.subreddit, config.mode.identifier(), config.query_size);
+
+    match config.mode {
+        Controversial(span) | Top(span) => url += &format!("&t={}", span),
+        _ => ()
+    };
+
+    url
+}
+
 impl Mode {
-    pub fn to_url(&self) -> String {
-        use reddit::Mode::*;
-
-        let mut url = "https://www.reddit.com/r/EarthPorn/".to_owned();
-        match self {
-            New => url.push_str("new.json"),
-            Hot => url.push_str("hot.json"),
-            Rising => url.push_str("rising.json"),
-            Controversial(span) => {
-                url.push_str("controversial.json?t=");
-                url.push_str(span.identifier());
-            }
-            Top(span) => {
-                url.push_str("top.json?t=");
-                url.push_str(span.identifier());
-            }
-        };
-        url
-    }
-
-    pub fn from_identifier(id: &str, span: Option<&str>) -> Option<Mode> {
+    pub fn from_identifier(id: &str, span: Option<&str>) -> Result<Mode, String> {
         let id = id.to_lowercase();
         let id = id.as_ref();
         match id {
-            "new" => Some(Mode::New),
-            "hot" => Some(Mode::Hot),
-            "rising" => Some(Mode::Rising),
-            "controversial" => span
-                .and_then(Span::from_identifier)
-                .map(Mode::Controversial),
-            "top" => span.and_then(Span::from_identifier).map(Mode::Top),
-            unsupported => {
-                error!("Unsupported mode '{}'", unsupported);
-                None
+            "new" => Ok(Mode::New),
+            "hot" => Ok(Mode::Hot),
+            "rising" => Ok(Mode::Rising),
+            "controversial" => {
+                let span_str = span.ok_or_else(|| "-span required")?;
+                let span = Span::from_identifier(span_str).ok_or_else(|| "--span invalid")?;
+                Ok(Mode::Controversial(span))
             }
+            "top" => {
+                let span_str = span.ok_or_else(|| "-span required")?;
+                let span = Span::from_identifier(span_str).ok_or_else(|| "--span invalid")?;
+                Ok(Mode::Top(span))
+            }
+            unsupported => Err(format!("Unsupported mode '{}'", unsupported)),
         }
     }
 
@@ -83,16 +82,19 @@ impl Span {
             _ => None,
         }
     }
+}
 
-    pub fn identifier(&self) -> &'static str {
+impl ::std::fmt::Display for Span {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         use reddit::Span::*;
-        match self {
+
+        write!(f, "{}", match self {
             Hour => "hour",
             Day => "day",
             Week => "week",
             Month => "month",
             Year => "year",
             All => "all",
-        }
+        })
     }
 }

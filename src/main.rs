@@ -19,7 +19,6 @@ mod wallpaper;
 use clap::App;
 use configuration::Configuration;
 use platform::set_wallpaper;
-use rand::{thread_rng, Rng};
 use schedule::{Agenda, Job};
 use simplelog::{Config, LevelFilter, TermLogger};
 use std::thread::sleep;
@@ -53,24 +52,24 @@ fn main() {
 }
 
 fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
-    let mut wallpapers = Wallpaper::search_on_reddit(&config.mode, config.query_size);
+    let mut wallpapers = Wallpaper::search_on_reddit(config);
 
-    if config.random {
-        thread_rng().shuffle(&mut wallpapers);
+    fn wallpaper_ok(wall: &Wallpaper, config: &Configuration) -> bool {
+        match wall.ratio() {
+            Some(ratio) => ratio >= config.min_ratio && ratio <= config.max_ratio,
+            _ => false
+        }
     }
 
     for wallpaper in wallpapers.iter_mut() {
-        wallpaper.update_state(&config.output_dir);
-
-        if wallpaper.file.is_some() {
+       /* if wallpaper_ok(wallpaper, config) {
             info!("Wallpaper already downloaded, not downloading it again..");
             return Some(wallpaper.clone());
-        }
+        }*/
 
         match wallpaper.download() {
             Ok(image_data) => {
-                let ratio = wallpaper.ratio().unwrap();
-                if ratio >= config.min_ratio && ratio <= config.max_ratio {
+                if wallpaper_ok(wallpaper, config) {
                     match wallpaper.save(&config.output_dir, &image_data) {
                         Ok(()) => return Some(wallpaper.clone()),
                         Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),

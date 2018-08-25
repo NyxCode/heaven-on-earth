@@ -8,6 +8,8 @@ use std::fs::read_dir;
 use std::fs::{canonicalize, create_dir_all, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use configuration::Configuration;
+use rand::{thread_rng, Rng};
 
 #[derive(Debug, Clone)]
 pub struct Wallpaper {
@@ -22,17 +24,8 @@ pub struct Wallpaper {
 
 impl Wallpaper {
     /// Search for up to [limit] wallpapers on reddit
-    pub fn search_on_reddit(mode: &reddit::Mode, limit: u8) -> Vec<Self> {
-        // assemble url
-        let mut url = mode.to_url();
-        if url.contains("?") {
-            url.push('&')
-        } else {
-            url.push('?')
-        }
-        url.push_str("limit=");
-        url.push_str(&limit.to_string());
-
+    pub fn search_on_reddit(config: &Configuration) -> Vec<Self> {
+        let url = reddit::create_url(config);
         let mut body = String::new();
         match reqwest::get(&url) {
             Ok(r) => r,
@@ -45,7 +38,7 @@ impl Wallpaper {
 
         let json = serde_json::from_str::<JsonVal>(&body[..]).unwrap();
 
-        json.get("data")
+        let mut wallpapers = json.get("data")
             .and_then(|data| data.get("children"))
             .map_or_else(Vec::new, |children| {
                 children
@@ -55,7 +48,17 @@ impl Wallpaper {
                     .filter_map(|child| child.get("data"))
                     .filter_map(|post| Wallpaper::from_json(post).ok())
                     .collect()
-            })
+            });
+
+        if config.random {
+            thread_rng().shuffle(&mut wallpapers);
+        }
+
+        for wallpaper in wallpapers.iter_mut() {
+            wallpaper.update_state(config.output_dir.to_owned())
+        }
+
+        wallpapers
     }
 
     /// Calculates the width/height ratio of this image
@@ -132,7 +135,7 @@ impl Wallpaper {
     }
 
     /// Searches this wallpaper in [image_directory] and, if found, sets [file] and [format]
-    pub fn update_state<P: AsRef<Path>>(&mut self, image_directory: P) {
+    fn update_state(&mut self, image_directory: String) {
         if self.file.is_some() && self.format.is_some() {
             return;
         }
