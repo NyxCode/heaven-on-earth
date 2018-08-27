@@ -1,4 +1,4 @@
-use ::configuration::Configuration;
+use configuration::Configuration;
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -24,12 +24,16 @@ pub enum Mode {
 pub fn create_url(config: &Configuration) -> String {
     use reddit::Mode::*;
 
-    let mut url = format!("https://www.reddit.com/r/{}/{}.json?limit={}",
-                          config.subreddit, config.mode.identifier(), config.query_size);
+    let mut url = format!(
+        "https://www.reddit.com/r/{}/{}.json?limit={}",
+        config.subreddit,
+        config.mode.identifier(),
+        config.query_size
+    );
 
     match config.mode {
         Controversial(span) | Top(span) => url += &format!("&t={}", span),
-        _ => ()
+        _ => (),
     };
 
     url
@@ -88,13 +92,17 @@ impl ::std::fmt::Display for Span {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         use reddit::Span::*;
 
-        write!(f, "{}", match self {
-            Hour => "hour",
-            Day => "day",
-            Week => "week",
-            Month => "month",
-            Year => "year",
-            All => "all",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Hour => "hour",
+                Day => "day",
+                Week => "week",
+                Month => "month",
+                Year => "year",
+                All => "all",
+            }
+        )
     }
 }

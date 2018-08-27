@@ -23,7 +23,7 @@ pub struct Wallpaper {
 }
 
 impl Wallpaper {
-    /// Search for up to [limit] wallpapers on reddit
+    /// Search for wallpapers on Reddit
     pub fn search_on_reddit(config: &Configuration) -> Vec<Self> {
         let url = reddit::create_url(config);
         let mut body = String::new();
@@ -36,10 +36,10 @@ impl Wallpaper {
         }.read_to_string(&mut body)
             .unwrap();
 
-
         let json = serde_json::from_str::<JsonVal>(&body[..]).unwrap();
 
-        let mut wallpapers = json.get("data")
+        let mut wallpapers = json
+            .get("data")
             .and_then(|data| data.get("children"))
             .map_or_else(Vec::new, |children| {
                 children
@@ -63,7 +63,6 @@ impl Wallpaper {
     }
 
     /// Calculates the width/height ratio of this image
-    /// Returns [None] if [width] and/or [height] is [None]
     pub fn ratio(&self) -> Option<f32> {
         self.dimensions
             .map(|(width, height)| width as f32 / height as f32)
@@ -71,17 +70,20 @@ impl Wallpaper {
 
     /// Sets this wallpaper as a background image
     pub fn set(&self) -> Result<(), String> {
-        match self.file {
-            Some(ref file) => {
+        // TODO: use 'wallpaper' crate
+
+        let file: Option<PathBuf> = self.file.clone();
+
+        let file_path = file
+            .ok_or_else(|| "wallpaper is not saved yet!".to_string())
+            .map(|file| {
                 let canonical = canonicalize(file).unwrap();
-                let path = canonical.to_str().unwrap();
-                match set_wallpaper(path) {
-                    Ok(()) => Ok(()),
-                    Err(_) => Err("could not set wallpaper!".to_owned()),
-                }
-            }
-            None => Err("wallpaper is not saved yet!".to_owned()),
-        }
+                let as_str = canonical.to_str().unwrap();
+                as_str.to_string()
+            })?;
+
+        set_wallpaper(&file_path)
+            .map_err(|_| "could not set wallpaper".to_string())
     }
 
     /// Downloads this wallpaper from its [url] and computes/sets its [format] and [dimensions]

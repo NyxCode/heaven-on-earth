@@ -1,11 +1,11 @@
 extern crate winapi;
 
-use configuration::Configuration;
 use self::winapi::shared::minwindef::TRUE;
 use self::winapi::um::winnt::PVOID;
 use self::winapi::um::winuser::{
-    SPI_SETDESKWALLPAPER, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SystemParametersInfoW,
+    SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
 };
+use configuration::Configuration;
 use std::env::{current_exe, home_dir};
 use std::ffi::OsStr;
 use std::fs::{copy, create_dir_all, remove_dir_all, remove_file, write};
@@ -34,18 +34,18 @@ pub fn set_wallpaper(path: &str) -> Result<(), ()> {
 }
 
 pub fn install(config: &Configuration) -> Result<(), String> {
-    let home_dir = home_dir()
-        .ok_or_else(|| "Home directory unknown".to_string())?;
+    let home_dir = home_dir().ok_or_else(|| "Home directory unknown".to_string())?;
     let startup_dir = get_startup_dir(&home_dir);
     let mut config = (*config).clone();
     config.output_dir = startup_dir
         .join("heaven-on-earth")
         .join("out")
-        .to_string_lossy().into_owned();
+        .to_string_lossy()
+        .into_owned();
 
     info!("Copying executable to {:?}..", startup_dir);
-    let current_executable = current_exe()
-        .map_err(|e| format!("Could not find current executable: {}", e))?;
+    let current_executable =
+        current_exe().map_err(|e| format!("Could not find current executable: {}", e))?;
     let executable_name = current_executable.file_name().unwrap().to_str().unwrap();
     let startup_executable = startup_dir.join(executable_name);
     copy(&current_executable, startup_executable)
@@ -73,8 +73,7 @@ pub fn uninstall() -> Result<(), String> {
     let executable = startup_dir.join("heaven-on-earth.exe");
     let config = startup_dir.join(::configuration::CONFIG_FILE_NAME);
 
-    remove_file(executable)
-        .map_err(|e| format!("Could not remove executable: {}", e))?;
+    remove_file(executable).map_err(|e| format!("Could not remove executable: {}", e))?;
     remove_dir_all(startup_dir.join("heaven-on-earth"))
         .map_err(|e| format!("Could not remove resources directory: {}", e))?;
 

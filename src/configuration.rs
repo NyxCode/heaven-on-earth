@@ -1,10 +1,10 @@
-use ::std::env::{current_dir, current_exe};
-use ::std::fs::{File, read_to_string};
-use ::std::path::{Path, PathBuf};
 use clap::ArgMatches;
 use meval::eval_str as str_to_i64;
 use reddit::Mode;
+use std::env::{current_dir, current_exe};
+use std::fs::{read_to_string, File};
 use std::io::Read;
+use std::path::{Path, PathBuf};
 
 pub const CONFIG_FILE_NAME: &'static str = "config.toml";
 pub const RUN_BY_DEFAULT: &'static str = ".run-on-default";
@@ -20,7 +20,6 @@ pub struct Settings {
     pub random: Option<bool>,
     pub subreddit: Option<String>,
 }
-
 
 impl Default for Settings {
     fn default() -> Self {
@@ -45,7 +44,7 @@ impl Settings {
             Some(mode) => Mode::from_identifier(mode, span)
                 .map_err(|e| warn!("could not parse mode: {}", e))
                 .ok(),
-            None => None
+            None => None,
         };
         let min_ratio = matches
             .value_of("min-ratio")
@@ -59,12 +58,15 @@ impl Settings {
         let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
         let output_dir = matches.value_of("output-dir").map(|dir| dir.to_owned());
         let subreddit = matches.value_of("subreddit").map(|name| name.to_owned());
-        let random: Option<bool> = matches.value_of("random")
+        let random: Option<bool> = matches
+            .value_of("random")
             .map(|random| random.to_lowercase() == "true")
-            .or_else(|| if matches.is_present("random") {
-                Some(true)
-            } else {
-                None
+            .or_else(|| {
+                if matches.is_present("random") {
+                    Some(true)
+                } else {
+                    None
+                }
             });
 
         let settings = Settings {
@@ -83,7 +85,9 @@ impl Settings {
 
     pub fn combine(settings: Vec<Settings>) -> Result<Self, String> {
         fn get<T, F>(settings: &Vec<Settings>, selector: F) -> Option<T>
-            where F: FnMut(&Settings) -> Option<T> {
+        where
+            F: FnMut(&Settings) -> Option<T>,
+        {
             settings.iter().filter_map(selector).last()
         }
 
@@ -148,8 +152,10 @@ pub fn init_config(matches: &ArgMatches) -> Result<Configuration, String> {
     let default_settings = Settings::default();
 
     let settings = if file.is_file() {
-        info!("Loading configuration file {}...",
-              file.file_name().unwrap().to_str().unwrap());
+        info!(
+            "Loading configuration file {}...",
+            file.file_name().unwrap().to_str().unwrap()
+        );
         let file_config = Settings::load_from_file(file)?;
         vec![default_settings, file_config, cli_settings]
     } else {
@@ -161,8 +167,15 @@ pub fn init_config(matches: &ArgMatches) -> Result<Configuration, String> {
 }
 
 pub fn should_run_by_default() -> bool {
-    current_exe().ok()
-        .map(|exe| exe.parent().unwrap().join("heaven-on-earth").join(RUN_BY_DEFAULT).is_file())
+    current_exe()
+        .ok()
+        .map(|exe| {
+            exe.parent()
+                .unwrap()
+                .join("heaven-on-earth")
+                .join(RUN_BY_DEFAULT)
+                .is_file()
+        })
         .unwrap_or(false)
 }
 
