@@ -1,11 +1,11 @@
 extern crate winapi;
 
+use configuration::Configuration;
 use self::winapi::shared::minwindef::TRUE;
 use self::winapi::um::winnt::PVOID;
 use self::winapi::um::winuser::{
-    SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
+    SPI_SETDESKWALLPAPER, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SystemParametersInfoW,
 };
-use configuration::Configuration;
 use std::env::{current_exe, home_dir};
 use std::ffi::OsStr;
 use std::fs::{copy, create_dir_all, remove_dir_all, remove_file, write};
@@ -13,8 +13,6 @@ use std::io::Error as IoError;
 use std::iter::once;
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
-
-const SCRIPT_NAME: &'static str = "heaven-on-earth.bat";
 
 pub fn set_wallpaper(path: &str) -> Result<(), ()> {
     let full_path: Vec<u16> = OsStr::new(path).encode_wide().chain(once(0)).collect();
@@ -35,49 +33,54 @@ pub fn set_wallpaper(path: &str) -> Result<(), ()> {
     }
 }
 
-pub fn install(config: Configuration) -> Result<(), String> {
-    info!("Copying executable...");
-    let exe = current_exe().map_err(|e| format!("Could not find current executable: {}", e))?;
-    let home = home_dir().ok_or_else(|| format!("Could not locate home directory"))?;
-    let app = get_app_dir(&home);
-    create_dir_all(&app).map_err(|e| format!("Could not create installation directory: {}", e))?;
-    let exe_name = exe.file_name().unwrap().to_str().unwrap();
-    let new_exe = app.join(exe_name);
-    copy(&exe, &new_exe).map_err(|e| format!("Could not copy executable: {}", e))?;
+pub fn install(config: &Configuration) -> Result<(), String> {
+    let home_dir = home_dir()
+        .ok_or_else(|| "Home directory unknown".to_string())?;
+    let startup_dir = get_startup_dir(&home_dir);
+    let mut config = (*config).clone();
+    config.output_dir = startup_dir
+        .join("heaven-on-earth")
+        .join("out")
+        .to_string_lossy().into_owned();
 
-    let mut config = config;
-    config.output_dir = app.join("output").to_str().unwrap().to_owned();
+    info!("Copying executable to {:?}..", startup_dir);
+    let current_executable = current_exe()
+        .map_err(|e| format!("Could not find current executable: {}", e))?;
+    let executable_name = current_executable.file_name().unwrap().to_str().unwrap();
+    let startup_executable = startup_dir.join(executable_name);
+    copy(&current_executable, startup_executable)
+        .map_err(|e| format!("Could not copy startup script: {}", e))?;
 
-    info!("Creating script...");
-    let script = app.join(SCRIPT_NAME);
-    let new_exe_str = new_exe.to_str().unwrap();
-    let command = config.to_command(new_exe_str);
-    write(&script, command).map_err(|e| format!("Could not create startup script: {}", e))?;
+    let resources_dir = startup_dir.join("heaven-on-earth");
+    create_dir_all(&resources_dir).unwrap();
 
-    info!("Copying script...");
-    let startup_dir = get_startup_dir(&home);
-    let script_file_name = script.file_name().unwrap();
-    let startup_script = startup_dir.join(script_file_name);
-    copy(&script, startup_script).map_err(|e| format!("Could not copy startup script: {}", e))?;
+    info!("Creating configuration file..");
+    let config_str = ::toml::to_string_pretty(&config)
+        .map_err(|e| format!("Could not serialize configuration: {}", e))?;
+    let config_file = resources_dir.join(::configuration::CONFIG_FILE_NAME);
+    write(&config_file, config_str)
+        .map_err(|e| format!("Could not create configuration file: {}", e))?;
 
+    info!("Finishing..");
+    let flag_file = resources_dir.join(::configuration::RUN_BY_DEFAULT);
+    ::std::fs::File::create(flag_file).unwrap();
     Ok(())
 }
 
 pub fn uninstall() -> Result<(), String> {
-    let home = home_dir().ok_or_else(|| format!("Could not locate home directory"))?;
-    let app = get_app_dir(&home);
-    let script = get_startup_dir(&home).join(SCRIPT_NAME);
+    let home_dir = home_dir().ok_or_else(|| format!("Could not locate home directory"))?;
+    let startup_dir = get_startup_dir(&home_dir);
+    let executable = startup_dir.join("heaven-on-earth.exe");
+    let config = startup_dir.join(::configuration::CONFIG_FILE_NAME);
 
-    remove_dir_all(app).map_err(|e| format!("Could not remove app directory: {}", e))?;
-    remove_file(script).map_err(|e| format!("Could not remove startup script: {}", e))?;
+    remove_file(executable)
+        .map_err(|e| format!("Could not remove executable: {}", e))?;
+    remove_dir_all(startup_dir.join("heaven-on-earth"))
+        .map_err(|e| format!("Could not remove resources directory: {}", e))?;
 
     Ok(())
 }
 
 fn get_startup_dir(home: &PathBuf) -> PathBuf {
     home.join("AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup")
-}
-
-fn get_app_dir(home: &PathBuf) -> PathBuf {
-    home.join(".heaven-on-earth")
 }

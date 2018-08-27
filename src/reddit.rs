@@ -1,7 +1,7 @@
 use ::configuration::Configuration;
 
 #[allow(dead_code)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Span {
     Hour,
     Day,
@@ -12,7 +12,7 @@ pub enum Span {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Mode {
     New,
     Hot,

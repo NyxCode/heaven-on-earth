@@ -1,15 +1,15 @@
-use super::immeta::{load_from_buf, GenericMetadata::*};
+use configuration::Configuration;
+use rand::{Rng, thread_rng};
+use std::fs::{canonicalize, create_dir_all, File};
+use std::fs::read_dir;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use super::immeta::{GenericMetadata::*, load_from_buf};
 use super::reddit;
 use super::reqwest;
 use super::serde_json;
 use super::serde_json::Value as JsonVal;
 use super::set_wallpaper;
-use std::fs::read_dir;
-use std::fs::{canonicalize, create_dir_all, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-use configuration::Configuration;
-use rand::{thread_rng, Rng};
 
 #[derive(Debug, Clone)]
 pub struct Wallpaper {
@@ -35,6 +35,7 @@ impl Wallpaper {
             }
         }.read_to_string(&mut body)
             .unwrap();
+
 
         let json = serde_json::from_str::<JsonVal>(&body[..]).unwrap();
 
@@ -113,6 +114,7 @@ impl Wallpaper {
     /// Saves this wallpaper in [directory] and sets [file] to the path of the created file
     pub fn save<P: AsRef<Path>>(&mut self, directory: P, image_data: &[u8]) -> Result<(), String> {
         let folder = directory.as_ref();
+        info!("Saving to {:?}", folder);
         let path = self.construct_path(folder).unwrap();
 
         if path.is_file() {

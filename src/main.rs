@@ -1,29 +1,37 @@
-extern crate byteorder;
-extern crate immeta;
-extern crate reqwest;
-extern crate schedule;
-extern crate serde_json;
+//#[cfg(not(debug_assertions))]
+//#![windows_subsystem = "windows"]
+
 #[macro_use]
 extern crate clap;
+extern crate immeta;
 #[macro_use]
 extern crate log;
 extern crate meval;
 extern crate rand;
+extern crate reqwest;
+extern crate schedule;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate simplelog;
+extern crate toml;
+
+use clap::{App, ArgMatches};
+use configuration::*;
+use platform::{install, uninstall};
+use platform::set_wallpaper;
+use schedule::{Agenda, Job};
+use simplelog::{Config, LevelFilter, TermLogger};
+use std::path::Path;
+use std::thread::sleep;
+use std::time::Duration;
+use wallpaper::Wallpaper;
 
 mod configuration;
 mod platform;
 mod reddit;
 mod wallpaper;
-
-use clap::App;
-use configuration::Configuration;
-use platform::set_wallpaper;
-use schedule::{Agenda, Job};
-use simplelog::{Config, LevelFilter, TermLogger};
-use std::thread::sleep;
-use std::time::Duration;
-use wallpaper::Wallpaper;
+mod utils;
 
 fn main() {
     TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
@@ -32,22 +40,45 @@ fn main() {
     let mut app = App::from_yaml(yaml);
     let matches = app.clone().get_matches();
 
-    if let Some(matches) = matches.subcommand_matches("run") {
-        let config = Configuration::from_matches(&matches);
-        run(&config)
-    } else if let Some(matches) = matches.subcommand_matches("install") {
-        let config = Configuration::from_matches(&matches);
-        match platform::install(config) {
-            Ok(()) => info!("Installation succeeded!"),
-            Err(e) => error!("Installation failed: {}", e),
-        }
-    } else if let Some(_) = matches.subcommand_matches("uninstall") {
-        match platform::uninstall() {
-            Ok(()) => info!("Uninstallation succeeded!"),
-            Err(e) => error!("Uninstallation failed: {}", e),
-        }
-    } else {
-        app.print_help().unwrap();
+    fn load_config<F>(matches: Option<&ArgMatches>, after: F) where F: Fn(Configuration) -> () {
+        let matches = match matches {
+            Some(matches) => matches.to_owned(),
+            None => ArgMatches::new()
+        };
+        let config = match configuration::init_config(&matches) {
+            Ok(config) => {
+                info!("{:?}", config);
+                after(config)
+            }
+            Err(error) => {
+                error!("{}", error);
+            }
+        };
+    }
+
+    match matches.subcommand() {
+        ("run", matches) =>
+            load_config(matches, |cfg| run(&cfg)),
+
+        ("install", matches) =>
+            load_config(matches, |cfg| match install(&cfg) {
+                Ok(()) => info!("Installation succeeded!"),
+                Err(e) => error!("Installation failed: {}", e),
+            }),
+
+        ("uninstall", _) =>
+            match platform::uninstall() {
+                Ok(()) => info!("Uninstallation succeeded!"),
+                Err(e) => error!("Uninstallation failed: {}", e),
+            }
+
+        (x, matches) =>
+            if configuration::should_run_by_default() {
+                info!("file '{}' found", configuration::RUN_BY_DEFAULT);
+                load_config(matches, |cfg| run(&cfg))
+            } else {
+                app.print_help();
+            }
     }
 }
 
@@ -55,18 +86,18 @@ fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
     let mut wallpapers = Wallpaper::search_on_reddit(config);
 
     fn wallpaper_ok(wall: &Wallpaper, config: &Configuration) -> bool {
-        match wall.ratio() {
-            Some(ratio) => ratio >= config.min_ratio && ratio <= config.max_ratio,
-            _ => false
-        }
+        let ratio = match wall.ratio() {
+            Some(ratio) => ratio,
+            None => return false
+        };
+
+        let wide_enough = config.min_ratio.map(|min| ratio >= min).unwrap_or(true);
+        let tall_enough = config.max_ratio.map(|max| ratio <= max).unwrap_or(true);
+
+        wide_enough && tall_enough
     }
 
     for wallpaper in wallpapers.iter_mut() {
-       /* if wallpaper_ok(wallpaper, config) {
-            info!("Wallpaper already downloaded, not downloading it again..");
-            return Some(wallpaper.clone());
-        }*/
-
         match wallpaper.download() {
             Ok(image_data) => {
                 if wallpaper_ok(wallpaper, config) {
