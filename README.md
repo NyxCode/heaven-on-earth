@@ -17,7 +17,7 @@
 *=> gets the most controversial image of the past hour, every hour*
 
 **`heaven-on-earth install --mode=top --span=day`**   
-*=> runs `heaven-on-earth run --mode=top --span=day` every time you log in (log out/in required)*
+*=> runs `heaven-on-earth run --mode=top --span=day` every time you log in (log out/in required, Windows only)*
 
 ### Platform support
 Windows  
