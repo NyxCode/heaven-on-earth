@@ -8,20 +8,20 @@ extern crate log;
 extern crate meval;
 extern crate rand;
 extern crate reqwest;
-extern crate schedule;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate simplelog;
 extern crate wallpaper as wallpaper_lib;
+extern crate job_scheduler;
 
 use clap::{App, ArgMatches};
 use configuration::{Configuration, RUN_BY_DEFAULT};
 use platform::{install, uninstall};
-use schedule::{Agenda, Job};
 use simplelog::{CombinedLogger, Config, LevelFilter, TermLogger, WriteLogger};
 use std::fs::File;
 use std::thread::sleep;
+use job_scheduler::{JobScheduler, Job};
 use std::time::Duration;
 use wallpaper::Wallpaper;
 
@@ -97,12 +97,16 @@ fn run(config: &Configuration) {
     fn run_repeating(config: &Configuration, cron_expr: &String) {
         run_once(config);
 
-        let mut agenda = Agenda::new();
-        agenda.add(Job::new(|| run_once(config), cron_expr.parse().unwrap()));
+        let job = Job::new(cron_expr.parse().unwrap(), || {
+            run_once(config)
+        });
+
+        let mut scheduler = JobScheduler::new();
+        scheduler.add(job);
 
         loop {
-            agenda.run_pending();
-            sleep(Duration::from_secs(1));
+            scheduler.tick();
+            sleep(Duration::from_millis(500));
         }
     }
 

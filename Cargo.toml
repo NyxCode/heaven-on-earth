@@ -7,7 +7,7 @@ authors = ["nyxcode"]
 serde_json = "1.0"
 reqwest = "0.8.8"
 immeta = "0.4"
-schedule = "0.1"
+job_scheduler = "*"
 clap = {version = "2.32", features = ["yaml"]}
 log = "0.4"
 simplelog = "^0.5.0"
