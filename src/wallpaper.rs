@@ -100,6 +100,7 @@ impl Wallpaper {
 
         for wallpaper in wallpapers.iter_mut() {
             wallpaper.update_state(config.output_dir.to_owned())
+                .map_err(|error| error!("Could not update state: {}", error)).ok();
         }
 
         wallpapers
@@ -141,19 +142,7 @@ impl Wallpaper {
             .read_to_end(&mut bytes)
             .map_err(|error| format!("could not read image into buffer: {}", error))?;
 
-        let image = load_from_buf(&bytes)
-            .map_err(|error| format!("computing dimensions failed: {}", error))?;
-
-        let dim = image.dimensions();
-        self.dimensions = Some((dim.width, dim.height));
-        self.format = Some(
-            match image {
-                Jpeg(_) => "jpeg",
-                Png(_) => "png",
-                Gif(_) => "gif",
-                _ => return Err("image format not supported".to_owned()),
-            }.to_owned()
-        );
+        self.update_with_image_data(&bytes[..])?;
 
         Ok(bytes)
     }
@@ -182,17 +171,14 @@ impl Wallpaper {
         Ok(())
     }
 
-    /// Searches this wallpaper in [image_directory] and, if found, sets [file] and [format]
-    fn update_state(&mut self, image_directory: String) {
-        if self.file.is_some() && self.format.is_some() {
-            return;
-        }
-
+    /// Searches this wallpaper in [image_directory] and,
+    /// if found, sets [file], [format] and [dimensions]
+    fn update_state(&mut self, image_directory: String) -> Result<(), String> {
         let image_directory: &Path = image_directory.as_ref();
 
         let directory_content = match read_dir(image_directory) {
             Ok(content) => content,
-            Err(_) => return,
+            Err(_) => return Ok(()),
         };
 
         let this_filename = self.construct_filename();
@@ -213,12 +199,33 @@ impl Wallpaper {
 
         match already_downloaded_file {
             Some(file) => {
-                let extension = file.extension().unwrap().to_str().unwrap().to_string();
-                self.file = Some(file);
-                self.format = Some(extension);
+                self.file = Some(file.clone());
+                let mut file = File::open(file)
+                    .map_err(|error| format!("Could not open file: {}", error))?;
+                let mut bytes = Vec::new();
+                file.read(&mut bytes)
+                    .map_err(|error| format!("Could not read file: {}", error))?;
+                self.update_with_image_data(&bytes[..])?;
             }
             None => (),
         };
+        Ok(())
+    }
+
+    fn update_with_image_data(&mut self, data: &[u8]) -> Result<(), String> {
+        let image = load_from_buf(data)
+            .map_err(|error| format!("Computing dimensions failed: {}", error))?;
+        let dim = image.dimensions();
+        self.dimensions = Some((dim.width, dim.height));
+        self.format = Some(
+            match image {
+                Jpeg(_) => "jpeg",
+                Png(_) => "png",
+                Gif(_) => "gif",
+                _ => return Err("Image format not supported".to_owned()),
+            }.to_owned()
+        );
+        Ok(())
     }
 
     /// The path where a wallpaper should be saved depending
