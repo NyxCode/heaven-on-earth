@@ -41,11 +41,11 @@ subcommands:
         value_name: int
         help: Amount of posts which will be queried
         takes_value: true
-    - subreddit:
-        long: subreddit
-        value_name: name
-        help: Sets the subredit from
-        takes_value: true
+    - subreddits:
+        long: subreddits
+        value_name: subreddits
+        help: Sets the subredits from which images will be queried
+        min_values: 1
     - random:
         long: random
         value_name: bool
@@ -91,11 +91,11 @@ subcommands:
         value_name: int
         help: Amount of posts which will be queried
         takes_value: true
-    - subreddit:
-        long: subreddit
-        value_name: name
-        help: Sets the subredit from
-        takes_value: true
+    - subreddits:
+        long: subreddits
+        value_name: subreddits
+        help: Sets the subredits from which images will be queried
+        min_values: 1
     - random:
         long: random
         value_name: bool

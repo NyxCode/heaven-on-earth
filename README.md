@@ -1,7 +1,11 @@
 # heaven-on-earth
 [![Build Status](https://travis-ci.org/NyxCode/heaven-on-earth.svg?branch=master)](https://travis-ci.org/NyxCode/heaven-on-earth)  
 
-`heaven-on-earth` is a small command-line utility for querying images from [/r/EarthPorn](https://www.reddit.com/r/EarthPorn/) and setting them as a wallpaper.
+`heaven-on-earth` is a small command-line utility for querying images from [/r/EarthPorn](https://www.reddit.com/r/EarthPorn/) *(and other subreddits)* and setting them as a wallpaper.
+
+### Installation
+**`git clone https://github.com/NyxCode/heaven-on-earth`**  
+**`cargo install --path heaven-on-earth --force`**
 
 ### Example Usage
 **`heaven-on-earth run --mode=top --span=day`**  
@@ -18,11 +22,6 @@
 
 **`heaven-on-earth install --mode=top --span=day`**   
 *=> runs `heaven-on-earth run --mode=top --span=day` every time you log in (log out/in required, Windows only)*
-
-### Platform support
-Windows  
-Unix *(with `feh` installed)*  
-MacOS
 
 ### Additional info
 See [this](https://crontab.guru) for `--run-every` syntax  

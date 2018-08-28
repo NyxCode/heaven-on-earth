@@ -1,5 +1,6 @@
 use ::configuration::Configuration;
 use ::std::fmt::{Display, Formatter, Result as FmtResult};
+use rand::{Rng, thread_rng};
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -25,9 +26,14 @@ pub enum Mode {
 pub fn create_url(config: &Configuration) -> String {
     use reddit::Mode::*;
 
+    let mut subreddits = config.subreddits.clone();
+    thread_rng().shuffle(&mut subreddits);
+
+    let subreddit = subreddits.first().unwrap();
+
     let mut url = format!(
         "https://www.reddit.com/r/{}/{}.json?limit={}",
-        config.subreddit,
+        subreddit,
         config.mode.identifier(),
         config.query_size
     );

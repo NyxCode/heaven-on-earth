@@ -33,8 +33,16 @@ impl Wallpaper {
 
             let wide_enough = cfg.min_ratio.map(|min| ratio >= min).unwrap_or(true);
             let tall_enough = cfg.max_ratio.map(|max| ratio <= max).unwrap_or(true);
+            let is_current = match ::wallpaper_lib::get() {
+                Ok(path) => path.contains(&wall.construct_filename()),
+                Err(_) => true
+            };
 
-            wide_enough && tall_enough
+            if is_current {
+                info!("Chosen wallpaper is the same as the current one, getting a new one..");
+            }
+
+            wide_enough && tall_enough && !is_current
         }
 
         // the directory for saving downloaded images
@@ -110,12 +118,13 @@ impl Wallpaper {
             .ok_or_else(|| "wallpaper is not saved yet!".to_string())
             .map(|file| {
                 let canonical = canonicalize(file).unwrap();
-                canonical.to_str().unwrap().to_string()
+                let to_str = canonical.to_str().unwrap();
+                to_str.trim_left_matches(r#"\\?\"#).to_string()
             })?;
 
-        ::wallpaper_lib::set_from_url(&file_path)
+        ::wallpaper_lib::set_from_file(&file_path)
             .map(|_| Ok(()))
-            .map_err(|error| format!("could not set wallpaper: {}", error))?
+            .map_err(|error| format!("could not set wallpaper {}: {}", file_path, error))?
     }
 
     /// Downloads this wallpaper from its [url] and computes/sets its [format] and [dimensions]

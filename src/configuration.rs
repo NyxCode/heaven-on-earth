@@ -16,7 +16,7 @@ pub struct Settings {
     pub run_every: Option<String>,
     pub output_dir: Option<String>,
     pub random: Option<bool>,
-    pub subreddit: Option<String>,
+    pub subreddits: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -28,7 +28,7 @@ pub struct Configuration {
     pub run_every: Option<String>,
     pub output_dir: String,
     pub random: bool,
-    pub subreddit: String,
+    pub subreddits: Vec<String>,
 }
 
 impl Default for Settings {
@@ -41,7 +41,7 @@ impl Default for Settings {
             run_every: None,
             output_dir: Some("image-out".to_string()),
             random: Some(false),
-            subreddit: Some("EarthPorn".to_string()),
+            subreddits: Some(vec!["EarthPorn".to_string(), "art".to_string()]),
         }
     }
 }
@@ -66,7 +66,8 @@ impl Settings {
             .map(|i| str_to_i64(i).expect("could not parse query_size") as u8);
         let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
         let output_dir = matches.value_of("output-dir").map(|dir| dir.to_owned());
-        let subreddit = matches.value_of("subreddit").map(|name| name.to_owned());
+        let subreddits = matches.values_of("subreddits")
+            .map(|v| v.map(|sub| sub.to_string()).collect());
         let random: Option<bool> = matches
             .value_of("random")
             .map(|random| random.to_lowercase() == "true")
@@ -86,7 +87,7 @@ impl Settings {
             run_every,
             output_dir,
             random,
-            subreddit,
+            subreddits,
         };
 
         Ok(settings)
@@ -108,7 +109,7 @@ impl Settings {
             run_every: get(&settings, |setting| setting.run_every.clone()),
             output_dir: get(&settings, |setting| setting.output_dir.clone()),
             random: get(&settings, |setting| setting.random),
-            subreddit: get(&settings, |setting| setting.subreddit.clone()),
+            subreddits: get(&settings, |setting| setting.subreddits.clone()),
         })
     }
 
@@ -125,7 +126,7 @@ impl Settings {
             run_every: self.run_every,
             output_dir: get(self.output_dir, "output_dir")?,
             random: get(self.random, "random")?,
-            subreddit: get(self.subreddit, "subreddit")?,
+            subreddits: get(self.subreddits, "subreddits")?,
         })
     }
 

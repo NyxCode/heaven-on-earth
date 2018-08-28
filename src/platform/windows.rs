@@ -40,7 +40,7 @@ pub fn install(config: &Configuration) -> Result<(), String> {
 pub fn uninstall() -> Result<(), String> {
     let home_dir = home_dir()?;
     let install_dir = home_dir.join(INSTALL_DIR);
-    let executable = get_startup_dir(&home_dir).join("heaven-on-earth.exe");
+    let executable = get_startup_dir(&home_dir).join(current_exe_name()?);
 
     remove_file(executable)
         .map_err(|e| format!("Could not remove executable: {}", e))?;
