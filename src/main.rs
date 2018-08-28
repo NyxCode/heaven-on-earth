@@ -1,5 +1,4 @@
-// uncomment to avoid unnecessary console window on Windows
-// #![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[macro_use]
 extern crate clap;
@@ -79,44 +78,10 @@ fn main() {
     }
 }
 
-fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
-    // 'true' if the wallpaper matches the query set in the configuration, else 'false'
-    fn wallpaper_ok(wall: &Wallpaper, cfg: &Configuration) -> bool {
-        let ratio = match wall.ratio() {
-            Some(ratio) => ratio,
-            None => return false,
-        };
-
-        let wide_enough = cfg.min_ratio.map(|min| ratio >= min).unwrap_or(true);
-        let tall_enough = cfg.max_ratio.map(|max| ratio <= max).unwrap_or(true);
-
-        wide_enough && tall_enough
-    }
-
-    // the directory for saving downloaded images
-    let out = &config.output_dir;
-
-    for wallpaper in Wallpaper::search_on_reddit(config).iter_mut() {
-        // download every wallpaper
-        match wallpaper.download() {
-            Ok(data) => if wallpaper_ok(wallpaper, config) {
-                match wallpaper.save(out, &data) {
-                    Ok(_) => return Some(wallpaper.clone()),
-                    Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
-                }
-            },
-            Err(e) => warn!("Wallpaper could not be downloaded: {}", e),
-        }
-    }
-
-    // we have not found a wallpaper
-    None
-}
-
 fn run(config: &Configuration) {
     fn run_once(config: &Configuration) {
         info!("Searching for a new wallpaper...");
-        match find_wallpaper(config) {
+        match Wallpaper::find(config) {
             Some(wallpaper) => match wallpaper.set() {
                 Ok(_) => (),
                 Err(err) => error!("Could not set wallpaper: {}", err),

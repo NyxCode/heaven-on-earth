@@ -23,6 +23,41 @@ pub struct Wallpaper {
 }
 
 impl Wallpaper {
+    /// Tries to find a single wallpaper on Reddit
+    pub fn find(config: &Configuration) -> Option<Self> {
+        // 'true' if the wallpaper matches the query set in the configuration, else 'false'
+        fn wallpaper_ok(wall: &Wallpaper, cfg: &Configuration) -> bool {
+            let ratio = match wall.ratio() {
+                Some(ratio) => ratio,
+                None => return false,
+            };
+
+            let wide_enough = cfg.min_ratio.map(|min| ratio >= min).unwrap_or(true);
+            let tall_enough = cfg.max_ratio.map(|max| ratio <= max).unwrap_or(true);
+
+            wide_enough && tall_enough
+        }
+
+        // the directory for saving downloaded images
+        let out = &config.output_dir;
+
+        for wallpaper in Wallpaper::search_on_reddit(config).iter_mut() {
+            // download every wallpaper
+            match wallpaper.download() {
+                Ok(data) => if wallpaper_ok(wallpaper, config) {
+                    match wallpaper.save(out, &data) {
+                        Ok(_) => return Some(wallpaper.clone()),
+                        Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
+                    }
+                },
+                Err(e) => warn!("Wallpaper could not be downloaded: {}", e),
+            }
+        }
+
+        // we have not found a wallpaper
+        None
+    }
+
     /// Search for wallpapers on Reddit
     pub fn search_on_reddit(config: &Configuration) -> Vec<Self> {
         let url = reddit::create_url(config);
