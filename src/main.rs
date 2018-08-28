@@ -90,7 +90,7 @@ fn run(config: &Configuration) {
                 Ok(_) => (),
                 Err(err) => error!("Could not set wallpaper: {}", err),
             },
-            None => warn!("No wallpaper found!"),
+            None => error!("No wallpaper found!"),
         };
     }
 

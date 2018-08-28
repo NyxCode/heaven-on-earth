@@ -30,6 +30,10 @@ impl Wallpaper {
                 Some(ratio) => ratio,
                 None => return false,
             };
+            let size = match wall.megapixel() {
+                Some(size) => size,
+                None => return false,
+            };
 
             let wide_enough = cfg.min_ratio.map(|min| ratio >= min).unwrap_or(true);
             let tall_enough = cfg.max_ratio.map(|max| ratio <= max).unwrap_or(true);
@@ -37,12 +41,9 @@ impl Wallpaper {
                 Ok(path) => path.contains(&wall.construct_filename()),
                 Err(_) => true
             };
+            let big_enough = cfg.min_res.map(|mp| size >= mp).unwrap_or(true);
 
-            if is_current {
-                info!("Chosen wallpaper is the same as the current one, getting a new one..");
-            }
-
-            wide_enough && tall_enough && !is_current
+            wide_enough && tall_enough && big_enough && !is_current
         }
 
         // the directory for saving downloaded images
@@ -108,6 +109,11 @@ impl Wallpaper {
     pub fn ratio(&self) -> Option<f32> {
         self.dimensions
             .map(|(width, height)| width as f32 / height as f32)
+    }
+
+    pub fn megapixel(&self) -> Option<f32> {
+        self.dimensions
+            .map(|(width, height)| width as f32 * height as f32 / 1_000_000.0)
     }
 
     /// Sets this wallpaper as a background image

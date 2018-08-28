@@ -17,6 +17,7 @@ pub struct Settings {
     pub output_dir: Option<String>,
     pub random: Option<bool>,
     pub subreddits: Option<Vec<String>>,
+    pub min_res: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -29,6 +30,7 @@ pub struct Configuration {
     pub output_dir: String,
     pub random: bool,
     pub subreddits: Vec<String>,
+    pub min_res: Option<f32>,
 }
 
 impl Default for Settings {
@@ -42,6 +44,7 @@ impl Default for Settings {
             output_dir: Some("image-out".to_string()),
             random: Some(false),
             subreddits: Some(vec!["EarthPorn".to_string(), "art".to_string()]),
+            min_res: None,
         }
     }
 }
@@ -64,6 +67,9 @@ impl Settings {
         let query_size = matches
             .value_of("query-size")
             .map(|i| str_to_i64(i).expect("could not parse query_size") as u8);
+        let min_res = matches
+            .value_of("min-res")
+            .map(|i| str_to_i64(i).expect("could not parse min_res") as f32);
         let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
         let output_dir = matches.value_of("output-dir").map(|dir| dir.to_owned());
         let subreddits = matches.values_of("subreddits")
@@ -88,6 +94,7 @@ impl Settings {
             output_dir,
             random,
             subreddits,
+            min_res,
         };
 
         Ok(settings)
@@ -110,6 +117,7 @@ impl Settings {
             output_dir: get(&settings, |setting| setting.output_dir.clone()),
             random: get(&settings, |setting| setting.random),
             subreddits: get(&settings, |setting| setting.subreddits.clone()),
+            min_res: get(&settings, |setting| setting.min_res.clone()),
         })
     }
 
@@ -127,6 +135,7 @@ impl Settings {
             output_dir: get(self.output_dir, "output_dir")?,
             random: get(self.random, "random")?,
             subreddits: get(self.subreddits, "subreddits")?,
+            min_res: get(self.min_res, "min-res").ok(),
         })
     }
 
