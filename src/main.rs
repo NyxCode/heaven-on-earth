@@ -13,14 +13,14 @@ extern crate schedule;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate simplelog;
-extern crate toml;
+extern crate wallpaper as wallpaper_lib;
 
 use clap::{App, ArgMatches};
-use configuration::{Configuration, RESOURCES_DIR, RUN_BY_DEFAULT};
+use configuration::{Configuration, RUN_BY_DEFAULT};
 use platform::{install, uninstall};
-use platform::set_wallpaper;
 use schedule::{Agenda, Job};
-use simplelog::{Config, LevelFilter, TermLogger};
+use simplelog::{CombinedLogger, Config, LevelFilter, TermLogger, WriteLogger};
+use std::fs::File;
 use std::thread::sleep;
 use std::time::Duration;
 use wallpaper::Wallpaper;
@@ -32,7 +32,13 @@ mod utils;
 mod wallpaper;
 
 fn main() {
-    TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
+    let log_file = utils::install_dir().unwrap().join("latest.log");
+
+    CombinedLogger::init(vec![
+        #[cfg(debug_assertions)]
+            TermLogger::new(LevelFilter::Info, Config::default()).unwrap(),
+        WriteLogger::new(LevelFilter::Info, Config::default(), File::create(log_file).unwrap()),
+    ]).unwrap();
 
     let yaml = load_yaml!("cli.yml");
     let mut app = App::from_yaml(yaml);
@@ -67,9 +73,7 @@ fn main() {
             Err(e) => error!("Uninstallation failed: {}", e),
         },
 
-        (_, matches) => if ::utils::current_exe_dir()
-            .join(RESOURCES_DIR)
-            .join(RUN_BY_DEFAULT).is_file() {
+        (_, matches) => if ::utils::install_dir().unwrap().join(RUN_BY_DEFAULT).is_file() {
             info!("file '{}' found", RUN_BY_DEFAULT);
             load_config(matches, |cfg| run(&cfg))
         } else {
@@ -91,6 +95,8 @@ fn run(config: &Configuration) {
     }
 
     fn run_repeating(config: &Configuration, cron_expr: &String) {
+        run_once(config);
+
         let mut agenda = Agenda::new();
         agenda.add(Job::new(|| run_once(config), cron_expr.parse().unwrap()));
 

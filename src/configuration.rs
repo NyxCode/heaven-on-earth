@@ -1,12 +1,11 @@
 use clap::ArgMatches;
 use meval::eval_str as str_to_i64;
 use reddit::Mode;
-use std::fs::{create_dir_all, File, remove_file};
 use std::path::Path;
 
-pub const CONFIG_FILE_NAME: &'static str = "config.toml";
+pub const CONFIG_FILE_NAME: &'static str = "config.json";
 pub const RUN_BY_DEFAULT: &'static str = ".run-on-default";
-pub const RESOURCES_DIR: &'static str = "heaven-on-earth";
+pub const INSTALL_DIR: &'static str = ".heaven-on-earth";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
@@ -133,7 +132,7 @@ impl Settings {
     pub fn load_from_file<P: AsRef<Path>>(file: P) -> Result<Self, String> {
         let file: &Path = file.as_ref();
         let content = ::std::fs::read_to_string(file).unwrap();
-        let config = ::toml::from_str(&content)
+        let config = ::serde_json::from_str(&content)
             .map_err(|error| format!("could not parse config: {}", error))?;
         Ok(config)
     }
@@ -141,11 +140,7 @@ impl Settings {
 
 impl Configuration {
     pub fn init(matches: &ArgMatches) -> Result<Configuration, String> {
-        let executable_dir = ::utils::current_exe_dir();
-        let mut file = executable_dir.join(CONFIG_FILE_NAME);
-        if !file.is_file() {
-            file = executable_dir.join(RESOURCES_DIR).join(CONFIG_FILE_NAME);
-        }
+        let file = ::utils::install_dir()?.join(CONFIG_FILE_NAME);
 
         let cli_settings = Settings::from_matches(matches)?;
         let default_settings = Settings::default();
@@ -163,16 +158,5 @@ impl Configuration {
 
         let config = Settings::combine(settings)?.into_config()?;
         Ok(config)
-    }
-}
-
-pub fn set_run_by_default<P: AsRef<Path>>(rsc_dir: P, run_by_default: bool) {
-    let rsc_dir: &Path = rsc_dir.as_ref();
-    create_dir_all(&rsc_dir).unwrap();
-    let file = rsc_dir.join(RUN_BY_DEFAULT);
-    if run_by_default {
-        File::create(file).ok();
-    } else {
-        remove_file(file).ok();
     }
 }

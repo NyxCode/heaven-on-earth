@@ -1,9 +1,26 @@
 use std::path::PathBuf;
 
-pub fn current_exe_dir() -> PathBuf {
+pub fn current_exe_name() -> Result<String, String> {
     ::std::env::current_exe()
-        .expect("Could not find current executable")
-        .parent()
-        .expect("Could not find directory of current executable")
-        .to_path_buf()
+        .map_err(|error| format!("Could not find current executable: {}", error))?
+        .file_name()
+        .ok_or_else(|| format!("Could not get filename"))?
+        .to_str()
+        .ok_or_else(|| format!("Could not convert to string"))
+        .map(str::to_string)
+}
+
+pub fn home_dir() -> Result<PathBuf, String> {
+    ::std::env::home_dir()
+        .ok_or_else(|| "Could not find home directory".to_string())
+}
+
+pub fn install_dir() -> Result<PathBuf, String> {
+    let dir = home_dir()
+        .map(|home| home.join(::configuration::INSTALL_DIR))?;
+
+    ::std::fs::create_dir_all(&dir)
+        .map_err(|error| format!("Could not create directories: {}", error))?;
+
+    Ok(dir)
 }

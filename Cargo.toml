@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["nyxcode"]
 
 [dependencies]
-winapi = { version = "0.3", features = ["winuser"] }
 serde_json = "1.0"
 reqwest = "0.8.8"
 immeta = "0.4"
@@ -14,6 +13,6 @@ log = "0.4"
 simplelog = "^0.5.0"
 meval = "0.1"
 rand = "0.5"
-toml = "0.4"
 serde_derive = "1.0"
 serde = "1.0"
+wallpaper = "1.0.0"

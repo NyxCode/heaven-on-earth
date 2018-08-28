@@ -9,7 +9,6 @@ use super::reddit;
 use super::reqwest;
 use super::serde_json;
 use super::serde_json::Value as JsonVal;
-use super::set_wallpaper;
 
 #[derive(Debug, Clone)]
 pub struct Wallpaper {
@@ -105,20 +104,18 @@ impl Wallpaper {
 
     /// Sets this wallpaper as a background image
     pub fn set(&self) -> Result<(), String> {
-        // TODO: use 'wallpaper' crate
-
         let file: Option<PathBuf> = self.file.clone();
 
         let file_path = file
             .ok_or_else(|| "wallpaper is not saved yet!".to_string())
             .map(|file| {
                 let canonical = canonicalize(file).unwrap();
-                let as_str = canonical.to_str().unwrap();
-                as_str.to_string()
+                canonical.to_str().unwrap().to_string()
             })?;
 
-        set_wallpaper(&file_path)
-            .map_err(|_| "could not set wallpaper".to_string())
+        ::wallpaper_lib::set_from_file(&file_path)
+            .map(|_| Ok(()))
+            .map_err(|error| format!("could not set wallpaper: {}", error))?
     }
 
     /// Downloads this wallpaper from its [url] and computes/sets its [format] and [dimensions]
