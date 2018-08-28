@@ -1,13 +1,12 @@
 use clap::ArgMatches;
 use meval::eval_str as str_to_i64;
 use reddit::Mode;
-use std::env::{current_dir, current_exe};
-use std::fs::{read_to_string, File};
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::fs::{create_dir_all, File, remove_file};
+use std::path::Path;
 
 pub const CONFIG_FILE_NAME: &'static str = "config.toml";
 pub const RUN_BY_DEFAULT: &'static str = ".run-on-default";
+pub const RESOURCES_DIR: &'static str = "heaven-on-earth";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Settings {
@@ -19,6 +18,18 @@ pub struct Settings {
     pub output_dir: Option<String>,
     pub random: Option<bool>,
     pub subreddit: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Configuration {
+    pub mode: Mode,
+    pub min_ratio: Option<f32>,
+    pub max_ratio: Option<f32>,
+    pub query_size: u8,
+    pub run_every: Option<String>,
+    pub output_dir: String,
+    pub random: bool,
+    pub subreddit: String,
 }
 
 impl Default for Settings {
@@ -40,12 +51,11 @@ impl Settings {
     pub fn from_matches(matches: &ArgMatches) -> Result<Self, String> {
         let mode_str = matches.value_of("mode");
         let span = matches.value_of("span");
-        let mode = match mode_str {
-            Some(mode) => Mode::from_identifier(mode, span)
+        let mode = mode_str.and_then(|string| {
+            Mode::from_identifier(string, span)
                 .map_err(|e| warn!("could not parse mode: {}", e))
-                .ok(),
-            None => None,
-        };
+                .ok()
+        });
         let min_ratio = matches
             .value_of("min-ratio")
             .map(|i| str_to_i64(i).expect("could not parse min_ratio") as f32);
@@ -85,8 +95,8 @@ impl Settings {
 
     pub fn combine(settings: Vec<Settings>) -> Result<Self, String> {
         fn get<T, F>(settings: &Vec<Settings>, selector: F) -> Option<T>
-        where
-            F: FnMut(&Settings) -> Option<T>,
+            where
+                F: FnMut(&Settings) -> Option<T>,
         {
             settings.iter().filter_map(selector).last()
         }
@@ -129,63 +139,40 @@ impl Settings {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct Configuration {
-    pub mode: Mode,
-    pub min_ratio: Option<f32>,
-    pub max_ratio: Option<f32>,
-    pub query_size: u8,
-    pub run_every: Option<String>,
-    pub output_dir: String,
-    pub random: bool,
-    pub subreddit: String,
-}
+impl Configuration {
+    pub fn init(matches: &ArgMatches) -> Result<Configuration, String> {
+        let executable_dir = ::utils::current_exe_dir();
+        let mut file = executable_dir.join(CONFIG_FILE_NAME);
+        if !file.is_file() {
+            file = executable_dir.join(RESOURCES_DIR).join(CONFIG_FILE_NAME);
+        }
 
-pub fn init_config(matches: &ArgMatches) -> Result<Configuration, String> {
-    let executable_dir = ::utils::current_exe_dir();
-    let mut file = executable_dir.join("config.toml");
-    if !file.is_file() {
-        file = executable_dir.join("heaven-on-earth").join("config.toml");
+        let cli_settings = Settings::from_matches(matches)?;
+        let default_settings = Settings::default();
+
+        let settings = if file.is_file() {
+            info!(
+                "Loading configuration file {}...",
+                file.file_name().unwrap().to_str().unwrap()
+            );
+            let file_config = Settings::load_from_file(file)?;
+            vec![default_settings, file_config, cli_settings]
+        } else {
+            vec![default_settings, cli_settings]
+        };
+
+        let config = Settings::combine(settings)?.into_config()?;
+        Ok(config)
     }
-
-    let cli_settings = Settings::from_matches(matches)?;
-    let default_settings = Settings::default();
-
-    let settings = if file.is_file() {
-        info!(
-            "Loading configuration file {}...",
-            file.file_name().unwrap().to_str().unwrap()
-        );
-        let file_config = Settings::load_from_file(file)?;
-        vec![default_settings, file_config, cli_settings]
-    } else {
-        vec![default_settings, cli_settings]
-    };
-
-    let config = Settings::combine(settings)?.into_config()?;
-    Ok(config)
 }
 
-pub fn should_run_by_default() -> bool {
-    current_exe()
-        .ok()
-        .map(|exe| {
-            exe.parent()
-                .unwrap()
-                .join("heaven-on-earth")
-                .join(RUN_BY_DEFAULT)
-                .is_file()
-        })
-        .unwrap_or(false)
-}
-
-pub fn set_run_by_default(run_by_default: bool) {
-    let dir = current_exe().ok().unwrap().join("heaven-on-earth");
-    ::std::fs::create_dir_all(&dir).unwrap();
-    let file = dir.join(RUN_BY_DEFAULT);
+pub fn set_run_by_default<P: AsRef<Path>>(rsc_dir: P, run_by_default: bool) {
+    let rsc_dir: &Path = rsc_dir.as_ref();
+    create_dir_all(&rsc_dir).unwrap();
+    let file = rsc_dir.join(RUN_BY_DEFAULT);
     if run_by_default {
         File::create(file).ok();
     } else {
-        ::std::fs::remove_file(file).ok();
+        remove_file(file).ok();
     }
 }

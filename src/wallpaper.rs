@@ -94,38 +94,35 @@ impl Wallpaper {
             .read_to_end(&mut bytes)
             .map_err(|error| format!("could not read image into buffer: {}", error))?;
 
-        match load_from_buf(&bytes) {
-            Ok(img) => {
-                let dim = img.dimensions();
-                self.dimensions = Some((dim.width, dim.height));
-                self.format = Some(
-                    match img {
-                        Jpeg(_) => "jpeg",
-                        Png(_) => "png",
-                        Gif(_) => "gif",
-                        _ => return Err("image format not supported".to_owned()),
-                    }.to_owned(),
-                )
-            }
-            Err(e) => return Err(format!("computing dimensions failed: {}", e)),
-        };
+        let image = load_from_buf(&bytes)
+            .map_err(|error| format!("computing dimensions failed: {}", error))?;
+
+        let dim = image.dimensions();
+        self.dimensions = Some((dim.width, dim.height));
+        self.format = Some(
+            match image {
+                Jpeg(_) => "jpeg",
+                Png(_) => "png",
+                Gif(_) => "gif",
+                _ => return Err("image format not supported".to_owned()),
+            }.to_owned()
+        );
 
         Ok(bytes)
     }
 
     /// Saves this wallpaper in [directory] and sets [file] to the path of the created file
-    pub fn save<P: AsRef<Path>>(&mut self, directory: P, image_data: &[u8]) -> Result<(), String> {
-        let folder = directory.as_ref();
-        info!("Saving to {:?}", folder);
-        let path = self.construct_path(folder).unwrap();
+    pub fn save<P: AsRef<Path>>(&mut self, dir: P, image_data: &[u8]) -> Result<(), String> {
+        let dir = dir.as_ref();
+        let path = self.construct_path(dir).unwrap();
 
         if path.is_file() {
             self.file = Some(path);
             return Ok(());
         }
 
-        if !folder.is_dir() {
-            create_dir_all(folder).map_err(|e| format!("could not create path: {}", e))?;
+        if !dir.is_dir() {
+            create_dir_all(dir).map_err(|e| format!("could not create path: {}", e))?;
         }
 
         File::create(&path)
@@ -177,29 +174,31 @@ impl Wallpaper {
         };
     }
 
+    /// The path where a wallpaper should be saved depending
+    /// on its title, format and the given directory
+    fn construct_path<P: AsRef<Path>>(&self, dir: P) -> Option<PathBuf> {
+        let dir: &Path = dir.as_ref();
+        let file_name = self.construct_filename();
+        let path = dir.join(file_name);
+        Some(path)
+    }
+
+    /// The name under which a wallpaper should be stored
+    /// on disk depending on its title and format
     fn construct_filename(&self) -> String {
         static FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
-        let format = &self.format.clone().unwrap_or(String::new());
-
-        let mut new_name: String = self
-            .title
-            .trim()
-            .chars()
-            .flat_map(|c| c.to_lowercase())
+        let new_name: String = self.title
+            .trim().chars()
+            .flat_map(char::to_lowercase)
             .filter(|c| !FORBIDDEN.contains(c))
             .map(|c| if c == ' ' { '_' } else { c })
             .collect();
 
-        new_name.push('.');
-        new_name.push_str(format);
-        new_name
-    }
-
-    fn construct_path<P: AsRef<Path>>(&self, folder: P) -> Option<PathBuf> {
-        let file_name = self.construct_filename();
-        let folder: &Path = folder.as_ref();
-        Some(folder.join(file_name))
+        match &self.format {
+            Some(format) => format!("{}.{}", new_name, format),
+            None => new_name
+        }
     }
 
     fn from_json(json: &JsonVal) -> Result<Self, &'static str> {

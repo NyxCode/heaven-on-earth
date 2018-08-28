@@ -1,4 +1,5 @@
-use configuration::Configuration;
+use ::configuration::Configuration;
+use ::std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -43,6 +44,7 @@ impl Mode {
     pub fn from_identifier(id: &str, span: Option<&str>) -> Result<Mode, String> {
         let id = id.to_lowercase();
         let id = id.as_ref();
+
         match id {
             "new" => Ok(Mode::New),
             "hot" => Ok(Mode::Hot),
@@ -63,6 +65,7 @@ impl Mode {
 
     pub fn identifier(&self) -> &'static str {
         use reddit::Mode::*;
+
         match self {
             New => "new",
             Hot => "hot",
@@ -88,21 +91,19 @@ impl Span {
     }
 }
 
-impl ::std::fmt::Display for Span {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl Display for Span {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use reddit::Span::*;
 
-        write!(
-            f,
-            "{}",
-            match self {
-                Hour => "hour",
-                Day => "day",
-                Week => "week",
-                Month => "month",
-                Year => "year",
-                All => "all",
-            }
-        )
+        let to_str = match self {
+            Hour => "hour",
+            Day => "day",
+            Week => "week",
+            Month => "month",
+            Year => "year",
+            All => "all",
+        };
+
+        write!(f, "{}", to_str)
     }
 }

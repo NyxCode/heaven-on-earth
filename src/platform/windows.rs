@@ -1,11 +1,11 @@
 extern crate winapi;
 
+use configuration::{Configuration, RESOURCES_DIR};
 use self::winapi::shared::minwindef::TRUE;
 use self::winapi::um::winnt::PVOID;
 use self::winapi::um::winuser::{
-    SystemParametersInfoW, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SPI_SETDESKWALLPAPER,
+    SPI_SETDESKWALLPAPER, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE, SystemParametersInfoW,
 };
-use configuration::Configuration;
 use std::env::{current_exe, home_dir};
 use std::ffi::OsStr;
 use std::fs::{copy, create_dir_all, remove_dir_all, remove_file, write};
@@ -62,8 +62,7 @@ pub fn install(config: &Configuration) -> Result<(), String> {
         .map_err(|e| format!("Could not create configuration file: {}", e))?;
 
     info!("Finishing..");
-    let flag_file = resources_dir.join(::configuration::RUN_BY_DEFAULT);
-    ::std::fs::File::create(flag_file).unwrap();
+    ::configuration::set_run_by_default(resources_dir, true);
     Ok(())
 }
 
@@ -71,10 +70,11 @@ pub fn uninstall() -> Result<(), String> {
     let home_dir = home_dir().ok_or_else(|| format!("Could not locate home directory"))?;
     let startup_dir = get_startup_dir(&home_dir);
     let executable = startup_dir.join("heaven-on-earth.exe");
-    let config = startup_dir.join(::configuration::CONFIG_FILE_NAME);
 
-    remove_file(executable).map_err(|e| format!("Could not remove executable: {}", e))?;
-    remove_dir_all(startup_dir.join("heaven-on-earth"))
+    remove_file(executable)
+        .map_err(|e| format!("Could not remove executable: {}", e))?;
+
+    remove_dir_all(startup_dir.join(RESOURCES_DIR))
         .map_err(|e| format!("Could not remove resources directory: {}", e))?;
 
     Ok(())

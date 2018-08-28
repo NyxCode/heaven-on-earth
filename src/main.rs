@@ -17,12 +17,11 @@ extern crate simplelog;
 extern crate toml;
 
 use clap::{App, ArgMatches};
-use configuration::*;
+use configuration::{Configuration, RESOURCES_DIR, RUN_BY_DEFAULT};
 use platform::{install, uninstall};
 use platform::set_wallpaper;
 use schedule::{Agenda, Job};
 use simplelog::{Config, LevelFilter, TermLogger};
-use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 use wallpaper::Wallpaper;
@@ -44,8 +43,8 @@ fn main() {
         where
             F: Fn(Configuration) -> (),
     {
-        let matches = matches.map(|m| m.to_owned()).unwrap_or_default();
-        let config = match configuration::init_config(&matches) {
+        let matches = matches.map(ToOwned::to_owned).unwrap_or_default();
+        match Configuration::init(&matches) {
             Ok(config) => {
                 info!("{:?}", config);
                 after(config)
@@ -64,22 +63,23 @@ fn main() {
             Err(e) => error!("Installation failed: {}", e),
         }),
 
-        ("uninstall", _) => match platform::uninstall() {
+        ("uninstall", _) => match uninstall() {
             Ok(()) => info!("Uninstallation succeeded!"),
             Err(e) => error!("Uninstallation failed: {}", e),
         },
 
-        (x, matches) => if configuration::should_run_by_default() {
-            info!("file '{}' found", configuration::RUN_BY_DEFAULT);
+        (_, matches) => if ::utils::current_exe_dir()
+            .join(RESOURCES_DIR)
+            .join(RUN_BY_DEFAULT).is_file() {
+            info!("file '{}' found", RUN_BY_DEFAULT);
             load_config(matches, |cfg| run(&cfg))
         } else {
-            app.print_help();
+            app.print_help().unwrap();
         },
     }
 }
 
 fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
-
     // 'true' if the wallpaper matches the query set in the configuration, else 'false'
     fn wallpaper_ok(wall: &Wallpaper, cfg: &Configuration) -> bool {
         let ratio = match wall.ratio() {
