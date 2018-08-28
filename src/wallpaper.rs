@@ -129,7 +129,7 @@ impl Wallpaper {
                 to_str.trim_left_matches(r#"\\?\"#).to_string()
             })?;
 
-        ::wallpaper_lib::set_from_file(&file_path)
+        ::wallpaper_lib::set_from_path(&file_path)
             .map(|_| Ok(()))
             .map_err(|error| format!("could not set wallpaper {}: {}", file_path, error))?
     }
