@@ -113,7 +113,7 @@ impl Wallpaper {
                 canonical.to_str().unwrap().to_string()
             })?;
 
-        ::wallpaper_lib::set_from_file(&file_path)
+        ::wallpaper_lib::set_from_url(&file_path)
             .map(|_| Ok(()))
             .map_err(|error| format!("could not set wallpaper: {}", error))?
     }
