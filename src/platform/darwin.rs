@@ -25,7 +25,7 @@ pub fn set_wallpaper(path: &str) -> Result<(), ()> {
     }
 }
 
-pub fn install(config: Configuration) -> Result<(), String> {
+pub fn install(config: &Configuration) -> Result<(), String> {
     Err("Your platform is not supported".to_owned())
 }
 

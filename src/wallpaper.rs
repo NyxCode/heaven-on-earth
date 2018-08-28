@@ -1,15 +1,15 @@
-use super::immeta::{load_from_buf, GenericMetadata::*};
+use configuration::Configuration;
+use rand::{Rng, thread_rng};
+use std::fs::{canonicalize, create_dir_all, File};
+use std::fs::read_dir;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use super::immeta::{GenericMetadata::*, load_from_buf};
 use super::reddit;
 use super::reqwest;
 use super::serde_json;
 use super::serde_json::Value as JsonVal;
 use super::set_wallpaper;
-use std::fs::read_dir;
-use std::fs::{canonicalize, create_dir_all, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-use configuration::Configuration;
-use rand::{thread_rng, Rng};
 
 #[derive(Debug, Clone)]
 pub struct Wallpaper {
@@ -23,7 +23,7 @@ pub struct Wallpaper {
 }
 
 impl Wallpaper {
-    /// Search for up to [limit] wallpapers on reddit
+    /// Search for wallpapers on Reddit
     pub fn search_on_reddit(config: &Configuration) -> Vec<Self> {
         let url = reddit::create_url(config);
         let mut body = String::new();
@@ -38,7 +38,8 @@ impl Wallpaper {
 
         let json = serde_json::from_str::<JsonVal>(&body[..]).unwrap();
 
-        let mut wallpapers = json.get("data")
+        let mut wallpapers = json
+            .get("data")
             .and_then(|data| data.get("children"))
             .map_or_else(Vec::new, |children| {
                 children
@@ -62,7 +63,6 @@ impl Wallpaper {
     }
 
     /// Calculates the width/height ratio of this image
-    /// Returns [None] if [width] and/or [height] is [None]
     pub fn ratio(&self) -> Option<f32> {
         self.dimensions
             .map(|(width, height)| width as f32 / height as f32)
@@ -70,17 +70,20 @@ impl Wallpaper {
 
     /// Sets this wallpaper as a background image
     pub fn set(&self) -> Result<(), String> {
-        match self.file {
-            Some(ref file) => {
+        // TODO: use 'wallpaper' crate
+
+        let file: Option<PathBuf> = self.file.clone();
+
+        let file_path = file
+            .ok_or_else(|| "wallpaper is not saved yet!".to_string())
+            .map(|file| {
                 let canonical = canonicalize(file).unwrap();
-                let path = canonical.to_str().unwrap();
-                match set_wallpaper(path) {
-                    Ok(()) => Ok(()),
-                    Err(_) => Err("could not set wallpaper!".to_owned()),
-                }
-            }
-            None => Err("wallpaper is not saved yet!".to_owned()),
-        }
+                let as_str = canonical.to_str().unwrap();
+                as_str.to_string()
+            })?;
+
+        set_wallpaper(&file_path)
+            .map_err(|_| "could not set wallpaper".to_string())
     }
 
     /// Downloads this wallpaper from its [url] and computes/sets its [format] and [dimensions]
@@ -91,37 +94,35 @@ impl Wallpaper {
             .read_to_end(&mut bytes)
             .map_err(|error| format!("could not read image into buffer: {}", error))?;
 
-        match load_from_buf(&bytes) {
-            Ok(img) => {
-                let dim = img.dimensions();
-                self.dimensions = Some((dim.width, dim.height));
-                self.format = Some(
-                    match img {
-                        Jpeg(_) => "jpeg",
-                        Png(_) => "png",
-                        Gif(_) => "gif",
-                        _ => return Err("image format not supported".to_owned()),
-                    }.to_owned(),
-                )
-            }
-            Err(e) => return Err(format!("computing dimensions failed: {}", e)),
-        };
+        let image = load_from_buf(&bytes)
+            .map_err(|error| format!("computing dimensions failed: {}", error))?;
+
+        let dim = image.dimensions();
+        self.dimensions = Some((dim.width, dim.height));
+        self.format = Some(
+            match image {
+                Jpeg(_) => "jpeg",
+                Png(_) => "png",
+                Gif(_) => "gif",
+                _ => return Err("image format not supported".to_owned()),
+            }.to_owned()
+        );
 
         Ok(bytes)
     }
 
     /// Saves this wallpaper in [directory] and sets [file] to the path of the created file
-    pub fn save<P: AsRef<Path>>(&mut self, directory: P, image_data: &[u8]) -> Result<(), String> {
-        let folder = directory.as_ref();
-        let path = self.construct_path(folder).unwrap();
+    pub fn save<P: AsRef<Path>>(&mut self, dir: P, image_data: &[u8]) -> Result<(), String> {
+        let dir = dir.as_ref();
+        let path = self.construct_path(dir).unwrap();
 
         if path.is_file() {
             self.file = Some(path);
             return Ok(());
         }
 
-        if !folder.is_dir() {
-            create_dir_all(folder).map_err(|e| format!("could not create path: {}", e))?;
+        if !dir.is_dir() {
+            create_dir_all(dir).map_err(|e| format!("could not create path: {}", e))?;
         }
 
         File::create(&path)
@@ -173,29 +174,31 @@ impl Wallpaper {
         };
     }
 
+    /// The path where a wallpaper should be saved depending
+    /// on its title, format and the given directory
+    fn construct_path<P: AsRef<Path>>(&self, dir: P) -> Option<PathBuf> {
+        let dir: &Path = dir.as_ref();
+        let file_name = self.construct_filename();
+        let path = dir.join(file_name);
+        Some(path)
+    }
+
+    /// The name under which a wallpaper should be stored
+    /// on disk depending on its title and format
     fn construct_filename(&self) -> String {
         static FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
-        let format = &self.format.clone().unwrap_or(String::new());
-
-        let mut new_name: String = self
-            .title
-            .trim()
-            .chars()
-            .flat_map(|c| c.to_lowercase())
+        let new_name: String = self.title
+            .trim().chars()
+            .flat_map(char::to_lowercase)
             .filter(|c| !FORBIDDEN.contains(c))
             .map(|c| if c == ' ' { '_' } else { c })
             .collect();
 
-        new_name.push('.');
-        new_name.push_str(format);
-        new_name
-    }
-
-    fn construct_path<P: AsRef<Path>>(&self, folder: P) -> Option<PathBuf> {
-        let file_name = self.construct_filename();
-        let folder: &Path = folder.as_ref();
-        Some(folder.join(file_name))
+        match &self.format {
+            Some(format) => format!("{}.{}", new_name, format),
+            None => new_name
+        }
     }
 
     fn from_json(json: &JsonVal) -> Result<Self, &'static str> {

@@ -1,29 +1,36 @@
-extern crate byteorder;
-extern crate immeta;
-extern crate reqwest;
-extern crate schedule;
-extern crate serde_json;
+// uncomment to avoid unnecessary console window on Windows
+// #![windows_subsystem = "windows"]
+
 #[macro_use]
 extern crate clap;
+extern crate immeta;
 #[macro_use]
 extern crate log;
 extern crate meval;
 extern crate rand;
+extern crate reqwest;
+extern crate schedule;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate simplelog;
+extern crate toml;
 
-mod configuration;
-mod platform;
-mod reddit;
-mod wallpaper;
-
-use clap::App;
-use configuration::Configuration;
+use clap::{App, ArgMatches};
+use configuration::{Configuration, RESOURCES_DIR, RUN_BY_DEFAULT};
+use platform::{install, uninstall};
 use platform::set_wallpaper;
 use schedule::{Agenda, Job};
 use simplelog::{Config, LevelFilter, TermLogger};
 use std::thread::sleep;
 use std::time::Duration;
 use wallpaper::Wallpaper;
+
+mod configuration;
+mod platform;
+mod reddit;
+mod utils;
+mod wallpaper;
 
 fn main() {
     TermLogger::init(LevelFilter::Info, Config::default()).unwrap();
@@ -32,53 +39,77 @@ fn main() {
     let mut app = App::from_yaml(yaml);
     let matches = app.clone().get_matches();
 
-    if let Some(matches) = matches.subcommand_matches("run") {
-        let config = Configuration::from_matches(&matches);
-        run(&config)
-    } else if let Some(matches) = matches.subcommand_matches("install") {
-        let config = Configuration::from_matches(&matches);
-        match platform::install(config) {
+    fn load_config<F>(matches: Option<&ArgMatches>, after: F)
+        where
+            F: Fn(Configuration) -> (),
+    {
+        let matches = matches.map(ToOwned::to_owned).unwrap_or_default();
+        match Configuration::init(&matches) {
+            Ok(config) => {
+                info!("{:?}", config);
+                after(config)
+            }
+            Err(error) => {
+                error!("{}", error);
+            }
+        };
+    }
+
+    match matches.subcommand() {
+        ("run", matches) => load_config(matches, |cfg| run(&cfg)),
+
+        ("install", matches) => load_config(matches, |cfg| match install(&cfg) {
             Ok(()) => info!("Installation succeeded!"),
             Err(e) => error!("Installation failed: {}", e),
-        }
-    } else if let Some(_) = matches.subcommand_matches("uninstall") {
-        match platform::uninstall() {
+        }),
+
+        ("uninstall", _) => match uninstall() {
             Ok(()) => info!("Uninstallation succeeded!"),
             Err(e) => error!("Uninstallation failed: {}", e),
-        }
-    } else {
-        app.print_help().unwrap();
+        },
+
+        (_, matches) => if ::utils::current_exe_dir()
+            .join(RESOURCES_DIR)
+            .join(RUN_BY_DEFAULT).is_file() {
+            info!("file '{}' found", RUN_BY_DEFAULT);
+            load_config(matches, |cfg| run(&cfg))
+        } else {
+            app.print_help().unwrap();
+        },
     }
 }
 
 fn find_wallpaper(config: &Configuration) -> Option<Wallpaper> {
-    let mut wallpapers = Wallpaper::search_on_reddit(config);
+    // 'true' if the wallpaper matches the query set in the configuration, else 'false'
+    fn wallpaper_ok(wall: &Wallpaper, cfg: &Configuration) -> bool {
+        let ratio = match wall.ratio() {
+            Some(ratio) => ratio,
+            None => return false,
+        };
 
-    fn wallpaper_ok(wall: &Wallpaper, config: &Configuration) -> bool {
-        match wall.ratio() {
-            Some(ratio) => ratio >= config.min_ratio && ratio <= config.max_ratio,
-            _ => false
-        }
+        let wide_enough = cfg.min_ratio.map(|min| ratio >= min).unwrap_or(true);
+        let tall_enough = cfg.max_ratio.map(|max| ratio <= max).unwrap_or(true);
+
+        wide_enough && tall_enough
     }
 
-    for wallpaper in wallpapers.iter_mut() {
-       /* if wallpaper_ok(wallpaper, config) {
-            info!("Wallpaper already downloaded, not downloading it again..");
-            return Some(wallpaper.clone());
-        }*/
+    // the directory for saving downloaded images
+    let out = &config.output_dir;
 
+    for wallpaper in Wallpaper::search_on_reddit(config).iter_mut() {
+        // download every wallpaper
         match wallpaper.download() {
-            Ok(image_data) => {
-                if wallpaper_ok(wallpaper, config) {
-                    match wallpaper.save(&config.output_dir, &image_data) {
-                        Ok(()) => return Some(wallpaper.clone()),
-                        Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
-                    }
+            Ok(data) => if wallpaper_ok(wallpaper, config) {
+                match wallpaper.save(out, &data) {
+                    Ok(_) => return Some(wallpaper.clone()),
+                    Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
                 }
-            }
+            },
             Err(e) => warn!("Wallpaper could not be downloaded: {}", e),
         }
     }
+
+    // we have not found a wallpaper
     None
 }
 
