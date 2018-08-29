@@ -30,6 +30,7 @@ pub fn create_url(config: &Configuration) -> String {
     thread_rng().shuffle(&mut subreddits);
 
     let subreddit = subreddits.first().unwrap();
+    info!("Searching on /r/{}...", subreddit);
 
     let mut url = format!(
         "https://www.reddit.com/r/{}/{}.json?limit={}",

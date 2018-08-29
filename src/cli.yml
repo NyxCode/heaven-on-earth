@@ -50,6 +50,11 @@ subcommands:
         long: random
         value_name: bool
         help: Choose a random wallpaper matching the query
+    - min-res:
+        long: min-res
+        value_name: megapixel
+        help: Don't choose wallpapers with a lower resolution
+        takes_value: true
 
 - uninstall:
     about: Uninstalls this executable

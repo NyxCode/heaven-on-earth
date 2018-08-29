@@ -52,11 +52,11 @@ impl Wallpaper {
         for wallpaper in Wallpaper::search_on_reddit(config).iter_mut() {
             // download every wallpaper
             match wallpaper.download() {
-                Ok(data) => if wallpaper_ok(wallpaper, config) {
-                    match wallpaper.save(out, &data) {
-                        Ok(_) => return Some(wallpaper.clone()),
-                        Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
-                    }
+                Ok(data) => match wallpaper.save(out, &data) {
+                    Ok(_) => if wallpaper_ok(wallpaper, config) {
+                        return Some(wallpaper.clone());
+                    },
+                    Err(e) => warn!("Downloaded wallpaper could not be saved: {}", e),
                 },
                 Err(e) => warn!("Wallpaper could not be downloaded: {}", e),
             }
@@ -100,7 +100,7 @@ impl Wallpaper {
 
         for wallpaper in wallpapers.iter_mut() {
             wallpaper.update_state(config.output_dir.to_owned())
-                .map_err(|error| error!("Could not update state: {}", error)).ok();
+                .map_err(|error| warn!("Could not update state: {}", error)).ok();
         }
 
         wallpapers
