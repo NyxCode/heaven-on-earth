@@ -72,7 +72,8 @@ impl Settings {
             .map(|i| str_to_i64(i).expect("could not parse min_res") as f32);
         let run_every = matches.value_of("run-every").map(|expr| expr.to_owned());
         let output_dir = matches.value_of("output-dir").map(|dir| dir.to_owned());
-        let subreddits = matches.values_of("subreddits")
+        let subreddits = matches
+            .values_of("subreddits")
             .map(|v| v.map(|sub| sub.to_string()).collect());
         let random: Option<bool> = matches
             .value_of("random")
@@ -102,8 +103,8 @@ impl Settings {
 
     pub fn combine(settings: Vec<Settings>) -> Result<Self, String> {
         fn get<T, F>(settings: &Vec<Settings>, selector: F) -> Option<T>
-            where
-                F: FnMut(&Settings) -> Option<T>,
+        where
+            F: FnMut(&Settings) -> Option<T>,
         {
             settings.iter().filter_map(selector).last()
         }
@@ -150,7 +151,7 @@ impl Settings {
 
 impl Configuration {
     pub fn init(matches: &ArgMatches) -> Result<Configuration, String> {
-        let file = ::utils::install_dir()?.join(CONFIG_FILE_NAME);
+        let file = ::utils::install_dir().join(CONFIG_FILE_NAME);
 
         let cli_settings = Settings::from_matches(matches)?;
         let default_settings = Settings::default();

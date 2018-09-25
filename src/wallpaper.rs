@@ -1,14 +1,14 @@
-use configuration::Configuration;
-use rand::{Rng, thread_rng};
-use std::fs::{canonicalize, create_dir_all, File};
-use std::fs::read_dir;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-use super::immeta::{GenericMetadata::*, load_from_buf};
+use super::immeta::{load_from_buf, GenericMetadata::*};
 use super::reddit;
 use super::reqwest;
 use super::serde_json;
 use super::serde_json::Value as JsonVal;
+use configuration::Configuration;
+use rand::{thread_rng, Rng};
+use std::fs::read_dir;
+use std::fs::{canonicalize, create_dir_all, File};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct Wallpaper {
@@ -39,7 +39,7 @@ impl Wallpaper {
             let tall_enough = cfg.max_ratio.map(|max| ratio <= max).unwrap_or(true);
             let is_current = match ::wallpaper_lib::get() {
                 Ok(path) => path.contains(&wall.construct_filename()),
-                Err(_) => true
+                Err(_) => true,
             };
             let big_enough = cfg.min_res.map(|mp| size >= mp).unwrap_or(true);
 
@@ -77,7 +77,7 @@ impl Wallpaper {
                 return Vec::new();
             }
         }.read_to_string(&mut body)
-            .unwrap();
+        .unwrap();
 
         let json = serde_json::from_str::<JsonVal>(&body[..]).unwrap();
 
@@ -99,8 +99,10 @@ impl Wallpaper {
         }
 
         for wallpaper in wallpapers.iter_mut() {
-            wallpaper.update_state(config.output_dir.to_owned())
-                .map_err(|error| warn!("Could not update state: {}", error)).ok();
+            wallpaper
+                .update_state(config.output_dir.to_owned())
+                .map_err(|error| warn!("Could not update state: {}", error))
+                .ok();
         }
 
         wallpapers
@@ -194,14 +196,13 @@ impl Wallpaper {
                     .to_str()
                     .unwrap()
                     .starts_with(this_filename)
-            })
-            .last();
+            }).last();
 
         match already_downloaded_file {
             Some(file) => {
                 self.file = Some(file.clone());
-                let mut file = File::open(file)
-                    .map_err(|error| format!("Could not open file: {}", error))?;
+                let mut file =
+                    File::open(file).map_err(|error| format!("Could not open file: {}", error))?;
                 let mut bytes = Vec::new();
                 file.read(&mut bytes)
                     .map_err(|error| format!("Could not read file: {}", error))?;
@@ -223,7 +224,7 @@ impl Wallpaper {
                 Png(_) => "png",
                 Gif(_) => "gif",
                 _ => return Err("Image format not supported".to_owned()),
-            }.to_owned()
+            }.to_owned(),
         );
         Ok(())
     }
@@ -242,8 +243,10 @@ impl Wallpaper {
     fn construct_filename(&self) -> String {
         static FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
-        let new_name: String = self.title
-            .trim().chars()
+        let new_name: String = self
+            .title
+            .trim()
+            .chars()
             .flat_map(char::to_lowercase)
             .filter(|c| !FORBIDDEN.contains(c))
             .map(|c| if c == ' ' { '_' } else { c })
@@ -251,7 +254,7 @@ impl Wallpaper {
 
         match &self.format {
             Some(format) => format!("{}.{}", new_name, format),
-            None => new_name
+            None => new_name,
         }
     }
 

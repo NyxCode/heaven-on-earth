@@ -11,16 +11,13 @@ pub fn current_exe_name() -> Result<String, String> {
 }
 
 pub fn home_dir() -> Result<PathBuf, String> {
-    ::std::env::home_dir()
-        .ok_or_else(|| "Could not find home directory".to_string())
+    ::dirs::home_dir().ok_or_else(|| "Could not find home directory".to_string())
 }
 
-pub fn install_dir() -> Result<PathBuf, String> {
-    let dir = home_dir()
-        .map(|home| home.join(::configuration::INSTALL_DIR))?;
+pub fn install_dir() -> PathBuf {
+    let dir = home_dir().unwrap().join(::configuration::INSTALL_DIR);
 
-    ::std::fs::create_dir_all(&dir)
-        .map_err(|error| format!("Could not create directories: {}", error))?;
+    ::std::fs::create_dir_all(&dir).expect("Could not create install directory!");
 
-    Ok(dir)
+    dir
 }

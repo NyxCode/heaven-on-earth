@@ -1,8 +1,8 @@
-use configuration::{Configuration, INSTALL_DIR, CONFIG_FILE_NAME, RUN_BY_DEFAULT};
-use std::env::{current_exe};
+use configuration::{Configuration, CONFIG_FILE_NAME, INSTALL_DIR, RUN_BY_DEFAULT};
+use std::env::current_exe;
 use std::fs::{copy, create_dir_all, remove_dir_all, remove_file, write, File};
 use std::path::PathBuf;
-use utils::{home_dir, current_exe_name};
+use utils::{current_exe_name, home_dir};
 
 pub fn install(config: &Configuration) -> Result<(), String> {
     let home_dir = home_dir()?;
@@ -10,13 +10,11 @@ pub fn install(config: &Configuration) -> Result<(), String> {
     let install_dir = home_dir.join(INSTALL_DIR);
 
     let mut config = (*config).clone();
-    config.output_dir = install_dir.join("out")
-        .to_string_lossy()
-        .into_owned();
+    config.output_dir = install_dir.join("out").to_string_lossy().into_owned();
 
     info!("Copying executable to {:?}..", startup_dir);
-    let current_executable = current_exe()
-        .map_err(|e| format!("Could not find current executable: {}", e))?;
+    let current_executable =
+        current_exe().map_err(|e| format!("Could not find current executable: {}", e))?;
     let startup_executable = startup_dir.join(current_exe_name()?);
     copy(&current_executable, startup_executable)
         .map_err(|e| format!("Could not copy startup script: {}", e))?;
@@ -42,8 +40,7 @@ pub fn uninstall() -> Result<(), String> {
     let install_dir = home_dir.join(INSTALL_DIR);
     let executable = get_startup_dir(&home_dir).join(current_exe_name()?);
 
-    remove_file(executable)
-        .map_err(|e| format!("Could not remove executable: {}", e))?;
+    remove_file(executable).map_err(|e| format!("Could not remove executable: {}", e))?;
 
     remove_dir_all(install_dir)
         .map_err(|e| format!("Could not remove install directory: {}", e))?;

@@ -1,6 +1,6 @@
-use ::configuration::Configuration;
-use ::std::fmt::{Display, Formatter, Result as FmtResult};
-use rand::{Rng, thread_rng};
+use configuration::Configuration;
+use rand::{thread_rng, Rng};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
